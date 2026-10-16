@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GitHub Multi-Project Roadmap Monitor</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Cpath d='M9 21.5v-8M9 21.5h13M9 13.5h13M9 13.5v-3M22 13.5v8' stroke='white' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E" />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#151f32',
+              925: '#0a0f1d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar untuk tema gelap */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen selection:bg-indigo-500 selection:text-white antialiased">
+
+  <!-- Background Ambient Glow -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl"></div>
+    <div class="absolute top-1/4 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
+    <div class="absolute bottom-0 left-1/3 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl"></div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- ================= HEADER & RATE LIMIT BAR ================= -->
+  <header class="sticky top-0 z-30 border-b border-slate-800/80 glass-panel">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        
+        <!-- Brand & Mode Badge -->
+        <div class="flex items-start sm:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500/20 via-slate-800 to-cyan-500/20 border border-indigo-500/30 flex items-center justify-center shadow-lg shadow-indigo-950/50 shrink-0">
+              <!-- GitHub + Roadmap Icon -->
+              <svg class="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2.5 flex-wrap">
+                <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white">GitHub Roadmap Monitor</h1>
+                <span id="modeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                  Mode Demo Simulasi
+                </span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5">
+                GraphQL API v4 Hybrid Monitor • <span class="text-indigo-400 font-mono">Milestones</span> → <span class="text-cyan-400 font-mono">ROADMAP.md</span> → <span class="text-amber-400 font-mono">Issues</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Controls: Rate Limit Panel & Action Buttons -->
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          
+          <!-- API Rate Limit Counter Widget -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2 flex items-center gap-3.5 shadow-inner">
+            <div class="flex-1 min-w-[165px]">
+              <div class="flex items-center justify-between text-xs mb-1">
+                <span class="text-slate-400 font-medium flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Kuota GraphQL
+                </span>
+                <span id="rateLimitNumbers" class="font-mono font-semibold text-slate-200">4999 / 5000</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div id="rateLimitBar" class="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-500" style="width: 99.9%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[10px] text-slate-400 mt-1 font-mono">
+                <span id="rateLimitCost">Cost: 1 pt/sync</span>
+                <span id="rateLimitReset">Reset: --:--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <button id="btnSyncNow" onclick="handleSyncNow()" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer">
+              <svg id="syncIcon" class="w-4 h-4 text-indigo-400 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Sync Sekarang</span>
+            </button>
+
+            <button id="btnDemoMode" onclick="loadDemoData(true)" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 transition cursor-pointer" title="Muat data simulasi interaktif tanpa token">
+              <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Mode Demo</span>
+            </button>
+
+            <button onclick="openQueryInspectorModal()" class="inline-flex items-center justify-center p-2.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer" title="Lihat Query GraphQL v4">
+              <svg class="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+            </button>
+
+            <button onclick="openTokenModal()" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25 transition cursor-pointer">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              <span>Konfigurasi Token GitHub</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTENT ================= -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Error / Status Alert Banner (Hidden by default) -->
+    <div id="errorBanner" class="hidden rounded-2xl bg-rose-950/60 border border-rose-500/40 p-4 text-rose-200 flex items-start justify-between gap-4">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-rose-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div>
+          <h3 class="text-sm font-semibold text-rose-100" id="errorBannerTitle">Gagal Mengambil Data GitHub API</h3>
+          <p class="text-xs text-rose-300 mt-1" id="errorBannerMessage"></p>
+        </div>
+      </div>
+      <button onclick="hideErrorBanner()" class="text-rose-400 hover:text-rose-200 p-1">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- ================= GLOBAL PORTFOLIO SUMMARY CARDS ================= -->
+    <section aria-label="Ringkasan Portofolio Proyek">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        
+        <!-- Total Projects -->
+        <button onclick="quickFilterHealth('ALL')" class="text-left bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 rounded-2xl p-4 transition group cursor-pointer">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-400">Total Proyek</span>
+            <span class="p-1.5 rounded-lg bg-slate-800 text-slate-300 group-hover:bg-indigo-500/20 group-hover:text-indigo-300 transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="statTotalProjects" class="text-2xl font-bold text-white font-mono">0</span>
+            <span class="text-[11px] text-slate-400">repositori</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Klik untuk tampilkan semua</p>
+        </button>
+
+        <!-- On Track -->
+        <button onclick="quickFilterHealth('On Track')" class="text-left bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-emerald-500/40 rounded-2xl p-4 transition group cursor-pointer">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-emerald-400">On Track</span>
+            <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="statOnTrack" class="text-2xl font-bold text-emerald-400 font-mono">0</span>
+            <span class="text-[11px] text-slate-400">aktif & sehat</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Push &lt; 30 hari, sesuai jadwal</p>
+        </button>
+
+        <!-- Overdue / At Risk -->
+        <button onclick="quickFilterHealth('Overdue')" class="text-left bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-rose-500/40 rounded-2xl p-4 transition group cursor-pointer">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-rose-400">Overdue</span>
+            <span class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="statOverdue" class="text-2xl font-bold text-rose-400 font-mono">0</span>
+            <span class="text-[11px] text-slate-400">lewat tenggat</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Milestone melewati due date</p>
+        </button>
+
+        <!-- Stale (> 30 Days) -->
+        <button onclick="quickFilterHealth('Stale')" class="text-left bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-4 transition group cursor-pointer">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-amber-400">Stale (&gt;30h)</span>
+            <span class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="statStale" class="text-2xl font-bold text-amber-400 font-mono">0</span>
+            <span class="text-[11px] text-slate-400">tidak aktif</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Tanpa commit &gt; 30 hari</p>
+        </button>
+
+        <!-- Completed (100%) -->
+        <button onclick="quickFilterHealth('Completed')" class="text-left bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-sky-500/40 rounded-2xl p-4 transition group cursor-pointer">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-sky-400">Completed</span>
+            <span class="p-1.5 rounded-lg bg-sky-500/10 text-sky-400">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="statCompleted" class="text-2xl font-bold text-sky-400 font-mono">0</span>
+            <span class="text-[11px] text-slate-400">100% tuntas</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Seluruh task/milestone selesai</p>
+        </button>
+
+        <!-- Average Portfolio Progress -->
+        <div class="bg-gradient-to-br from-indigo-950/50 via-slate-900/90 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-indigo-300">Rata-rata Progres</span>
+            <span id="statAvgProgressBadge" class="text-xs font-mono font-bold text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-md">0%</span>
+          </div>
+          <div class="my-2">
+            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div id="statAvgProgressBar" class="h-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+            <span id="statTotalTasksRatio">0 / 0 task selesai</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= FILTER, SEARCH & VIEW SWITCHER BAR ================= -->
+    <section class="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-4 space-y-4">
+      <div class="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+        
+        <!-- Search Input -->
+        <div class="relative flex-1">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            id="searchInput"
+            type="text"
+            oninput="applyFiltersAndRender()"
+            placeholder="Cari nama repositori, deskripsi, bahasa, atau nama milestone..."
+            class="w-full pl-10 pr-9 py-2.5 bg-slate-950/90 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
+          />
+          <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Dropdown Filters & View Switcher -->
+        <div class="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+          
+          <!-- Filter Health Status -->
+          <div class="w-full sm:w-auto">
+            <select id="filterHealth" onchange="applyFiltersAndRender()" class="w-full sm:w-auto bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer">
+              <option value="ALL">Semua Status Kesehatan</option>
+              <option value="On Track">🟢 On Track</option>
+              <option value="Overdue">🔴 Overdue (Lewat Tenggat)</option>
+              <option value="Stale">🟡 Stale (&gt;30 Hari)</option>
+              <option value="Completed">🔵 Completed (100%)</option>
+              <option value="No Roadmap">⚪ No Roadmap</option>
+            </select>
+          </div>
+
+          <!-- Filter Roadmap Source -->
+          <div class="w-full sm:w-auto">
+            <select id="filterSource" onchange="applyFiltersAndRender()" class="w-full sm:w-auto bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer">
+              <option value="ALL">Semua Sumber Roadmap</option>
+              <option value="MILESTONE">🎯 Tier 1: GitHub Milestones</option>
+              <option value="ROADMAP.MD">📄 Tier 2: File ROADMAP.md</option>
+              <option value="ISSUES">⚙️ Tier 3: Rasio Issues</option>
+              <option value="NONE">➖ Belum Ada Sumber</option>
+            </select>
+          </div>
+
+          <!-- Sort Order -->
+          <div class="w-full sm:w-auto">
+            <select id="sortOrder" onchange="applyFiltersAndRender()" class="w-full sm:w-auto bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer">
+              <option value="PUSHED_DESC">Urutkan: Terbaru Di-push</option>
+              <option value="PROGRESS_DESC">Urutkan: Progres Tertinggi</option>
+              <option value="PROGRESS_ASC">Urutkan: Progres Terendah</option>
+              <option value="DUE_ASC">Urutkan: Tenggat Terdekat</option>
+              <option value="NAME_ASC">Urutkan: Nama (A-Z)</option>
+            </select>
+          </div>
+
+          <!-- View Mode Toggle (Grid vs Table) -->
+          <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800 shrink-0">
+            <button id="btnViewGrid" onclick="setViewMode('GRID')" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-indigo-600 text-white transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+              <span>Grid</span>
+            </button>
+            <button id="btnViewTable" onclick="setViewMode('TABLE')" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              <span>Tabel</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Active Filter Bar & Source Tier Legend -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/70 text-xs text-slate-400">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span>Menampilkan <strong id="visibleCount" class="text-white font-mono">0</strong> dari <strong id="totalCountText" class="text-slate-300 font-mono">0</strong> proyek</span>
+          <span id="lastSyncedText" class="text-slate-500">• Sinkronisasi terakhir: Baru saja</span>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap text-[11px]">
+          <span class="text-slate-500">Prioritas Fallback:</span>
+          <span class="inline-flex items-center gap-1 text-indigo-300"><span class="w-2 h-2 rounded-full bg-indigo-400"></span>1. Milestone</span>
+          <span class="inline-flex items-center gap-1 text-cyan-300"><span class="w-2 h-2 rounded-full bg-cyan-400"></span>2. ROADMAP.md</span>
+          <span class="inline-flex items-center gap-1 text-amber-300"><span class="w-2 h-2 rounded-full bg-amber-400"></span>3. Issues</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= LOADING SKELETON ================= -->
+    <div id="loadingSkeleton" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 space-y-4 animate-pulse">
+        <div class="h-5 bg-slate-800 rounded w-2/3"></div>
+        <div class="h-3 bg-slate-800 rounded w-full"></div>
+        <div class="h-3 bg-slate-800 rounded w-4/5"></div>
+        <div class="h-2.5 bg-slate-800 rounded-full w-full mt-6"></div>
+        <div class="h-8 bg-slate-800 rounded-xl w-full"></div>
+      </div>
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 space-y-4 animate-pulse">
+        <div class="h-5 bg-slate-800 rounded w-1/2"></div>
+        <div class="h-3 bg-slate-800 rounded w-full"></div>
+        <div class="h-3 bg-slate-800 rounded w-3/4"></div>
+        <div class="h-2.5 bg-slate-800 rounded-full w-full mt-6"></div>
+        <div class="h-8 bg-slate-800 rounded-xl w-full"></div>
+      </div>
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 space-y-4 animate-pulse">
+        <div class="h-5 bg-slate-800 rounded w-3/5"></div>
+        <div class="h-3 bg-slate-800 rounded w-full"></div>
+        <div class="h-3 bg-slate-800 rounded w-2/3"></div>
+        <div class="h-2.5 bg-slate-800 rounded-full w-full mt-6"></div>
+        <div class="h-8 bg-slate-800 rounded-xl w-full"></div>
+      </div>
+    </div>
+
+    <!-- ================= PROJECT CARDS GRID VIEW ================= -->
+    <section id="projectsGridView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></section>
+
+    <!-- ================= PROJECT COMPACT TABLE VIEW ================= -->
+    <section id="projectsTableView" class="hidden bg-slate-900/80 border border-slate-800/90 rounded-2xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-950/60">
+              <th class="py-3.5 px-4">Repositori</th>
+              <th class="py-3.5 px-4">Sumber Roadmap</th>
+              <th class="py-3.5 px-4">Status Kesehatan</th>
+              <th class="py-3.5 px-4 min-w-[180px]">Progres & Rasio Task</th>
+              <th class="py-3.5 px-4">Target / Tenggat</th>
+              <th class="py-3.5 px-4">Push Terakhir</th>
+              <th class="py-3.5 px-4 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="projectsTableBody" class="divide-y divide-slate-800/70 text-xs"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden bg-slate-900/50 border border-slate-800/80 rounded-2xl p-12 text-center max-w-lg mx-auto my-8">
+      <div class="w-12 h-12 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto mb-4 text-slate-400">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+      <h3 class="text-base font-semibold text-white">Tidak Ada Proyek yang Cocok</h3>
+      <p class="text-xs text-slate-400 mt-1">Coba ubah kata kunci pencarian atau reset filter status kesehatan dan sumber roadmap.</p>
+      <button onclick="resetAllFilters()" class="mt-4 px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer">
+        Reset Semua Filter
+      </button>
+    </div>
+
+  </main>
+
+  <!-- ================= MODAL 1: DETAIL ROADMAP PROYEK ================= -->
+  <div id="detailModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fadeIn">
+      
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-slate-800 flex items-start justify-between gap-4 bg-slate-950/50">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap" id="modalHeaderBadges"></div>
+          <h2 id="modalRepoName" class="text-lg font-bold text-white mt-1 font-mono">repo-name</h2>
+          <p id="modalRepoDesc" class="text-xs text-slate-400 mt-0.5"></p>
+        </div>
+        <button onclick="closeDetailModal()" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div id="modalBodyContent" class="p-5 overflow-y-auto space-y-5 flex-1"></div>
+
+      <!-- Modal Footer -->
+      <div class="p-4 border-t border-slate-800 bg-slate-950/60 flex flex-wrap items-center justify-between gap-3">
+        <button onclick="copyCurrentProjectJson()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer">
+          <svg class="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <span>Salin JSON Proyek</span>
+        </button>
+
+        <div class="flex items-center gap-2">
+          <a id="modalGithubLink" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition">
+            <span>Buka di GitHub</span>
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+          <button onclick="closeDetailModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer">
+            Tutup
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL 2: KONFIGURASI TOKEN GITHUB ================= -->
+  <div id="tokenModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-white">Konfigurasi GitHub Personal Access Token</h2>
+            <p class="text-xs text-slate-400">Koneksi langsung ke GitHub GraphQL API v4</p>
+          </div>
+        </div>
+        <button onclick="closeTokenModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-white">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-3.5 text-xs text-slate-300 space-y-1.5">
+          <div class="font-semibold text-indigo-300 flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Izin Fine-Grained PAT yang Diperlukan (Read-Only):
+          </div>
+          <ul class="list-disc list-inside text-slate-400 space-y-1 text-[11px]">
+            <li><strong class="text-slate-200">Contents</strong> (Read-only) — untuk membaca file <code class="text-cyan-300">ROADMAP.md</code></li>
+            <li><strong class="text-slate-200">Issues</strong> (Read-only) — untuk mengambil <code class="text-indigo-300">Milestones</code> & rasio Issues</li>
+            <li><strong class="text-slate-200">Metadata</strong> (Read-only) — otomatis aktif untuk daftar repositori</li>
+          </ul>
+        </div>
+
+        <div>
+          <label for="githubTokenInput" class="block text-xs font-medium text-slate-300 mb-1.5">GitHub Personal Access Token (<code class="text-indigo-400">github_pat_...</code> atau <code class="text-indigo-400">ghp_...</code>)</label>
+          <input
+            id="githubTokenInput"
+            type="password"
+            placeholder="Masukkan token GitHub Anda..."
+            class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+
+        <div class="flex items-center justify-between">
+          <label class="inline-flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+            <input id="rememberTokenCheckbox" type="checkbox" checked class="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-indigo-500" />
+            <span>Simpan token & cache di browser (<code class="text-slate-400">localStorage</code>)</span>
+          </label>
+          <button onclick="clearSavedToken()" class="text-xs text-rose-400 hover:text-rose-300 underline cursor-pointer">
+            Hapus Token Tersimpan
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end gap-2.5">
+        <button onclick="closeTokenModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer">
+          Batal
+        </button>
+        <button onclick="saveTokenAndFetch()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25 transition cursor-pointer">
+          Hubungkan & Tarik Data
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL 3: GRAPHQL QUERY INSPECTOR ================= -->
+  <div id="queryInspectorModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-mono text-xs border border-cyan-500/30">POST /graphql</span>
+            Query GraphQL Hibrida (3-Tier Fallback)
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Menarik 50 repositori + Milestones + ROADMAP.md + Issues hanya dengan biaya 1 poin kuota API.</p>
+        </div>
+        <button onclick="closeQueryInspectorModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-white">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="p-5 overflow-y-auto flex-1 bg-slate-950">
+        <pre id="graphqlQueryCodeBlock" class="text-xs font-mono text-cyan-300 whitespace-pre-wrap leading-relaxed"></pre>
+      </div>
+      <div class="p-4 border-t border-slate-800 bg-slate-900 flex items-center justify-between">
+        <span class="text-xs text-slate-400">Endpoint: <code class="text-slate-200 font-mono">https://api.github.com/graphql</code></span>
+        <div class="flex items-center gap-2">
+          <button onclick="copyGraphqlQuery()" class="px-3.5 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer">
+            Salin Query GraphQL
+          </button>
+          <button onclick="closeQueryInspectorModal()" class="px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer">
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= APPLICATION JAVASCRIPT ================= -->
+  <script>
+    // ============================================================================
+    // 1. KONSTANTA & QUERY GITHUB GRAPHQL API V4
+    // ============================================================================
+    const GITHUB_GRAPHQL_ENDPOINT = 'https://api.github.com/graphql';
+    const PROXY_ENDPOINT = '/api/roadmaps';
+    const STORAGE_KEY_TOKEN = 'gh_roadmap_monitor_pat';
+    const STORAGE_KEY_CACHE = 'gh_roadmap_monitor_cache_v1';
+
+    const ROADMAP_QUERY = `query GetAllProjectRoadmaps($cursor: String) {
+  rateLimit {
+    limit
+    cost
+    remaining
+    resetAt
+  }
+  viewer {
+    repositories(
+      first: 50
+      after: $cursor
+      ownerAffiliations: [OWNER]
+      isFork: false
+      orderBy: { field: PUSHED_AT, direction: DESC }
+    ) {
+      totalCount
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        name
+        description
+        url
+        isPrivate
+        pushedAt
+        updatedAt
+        primaryLanguage {
+          name
+          color
+        }
+        milestones(first: 10, states: [OPEN, CLOSED], orderBy: { field: DUE_DATE, direction: ASC }) {
+          totalCount
+          nodes {
+            id
+            title
+            state
+            dueOn
+            progressPercentage
+            openIssues: issues(states: OPEN) { totalCount }
+            closedIssues: issues(states: CLOSED) { totalCount }
+          }
+        }
+        roadmapUpper: object(expression: "HEAD:ROADMAP.md") {
+          ... on Blob { text }
+        }
+        roadmapLower: object(expression: "HEAD:roadmap.md") {
+          ... on Blob { text }
+        }
+        openIssues: issues(states: OPEN) { totalCount }
+        closedIssues: issues(states: CLOSED) { totalCount }
+      }
+    }
+  }
+}`;
+
+    // ============================================================================
+    // 2. STATE GLOBAL APLIKASI
+    // ============================================================================
+    let appState = {
+      isLiveMode: false,
+      lastSyncedAt: new Date(),
+      rateLimit: {
+        limit: 5000,
+        cost: 1,
+        remaining: 4999,
+        resetAt: new Date(Date.now() + 3600 * 1000).toISOString()
+      },
+      projects: [],
+      filteredProjects: [],
+      viewMode: 'GRID', // 'GRID' | 'TABLE'
+      selectedProject: null,
+      viaProxy: false // true jika data live datang dari /api/roadmaps (token di server)
+    };
+
+    // ============================================================================
+    // 3. PARSER CHECKLIST MARKDOWN & 3-TIER FALLBACK LOGIC
+    // ============================================================================
+
+    /**
+     * Mengekstrak jumlah task selesai (- [x]) dan belum selesai (- [ ])
+     * sekaligus mengelompokkan item checklist dari teks Markdown ROADMAP.md
+     */
+    function parseMarkdownChecklist(markdownText) {
+      if (!markdownText) return null;
+
+      const completedMatches = markdownText.match(/^[\s]*[-*+]\s+\[[xX]\]/gm) || [];
+      const openMatches = markdownText.match(/^[\s]*[-*+]\s+\[\s\]/gm) || [];
+
+      const completed = completedMatches.length;
+      const open = openMatches.length;
+      const total = completed + open;
+
+      if (total === 0) return null;
+
+      // Ekstrak rincian baris checklist beserta sub-heading terakhir untuk modal detail
+      const lines = markdownText.split(/\r?\n/);
+      let currentSection = 'Daftar Tugas Utama';
+      const items = [];
+
+      for (const line of lines) {
+        const headingMatch = line.match(/^(#{1,3})\s+(.+)/);
+        if (headingMatch) {
+          currentSection = headingMatch[2].trim();
+          continue;
+        }
+        const taskMatch = line.match(/^[\s]*[-*+]\s+\[([xX\s])\]\s+(.+)/);
+        if (taskMatch) {
+          items.push({
+            done: taskMatch[1].toLowerCase() === 'x',
+            text: taskMatch[2].trim(),
+            section: currentSection
+          });
+        }
+      }
+
+      return {
+        completed,
+        open,
+        total,
+        progress: Math.round((completed / total) * 100),
+        items,
+        rawText: markdownText
+      };
+    }
+
+    /**
+     * Menentukan status kesehatan proyek berdasarkan progres, tenggat waktu, dan aktivitas terakhir
+     */
+    function evaluateProjectHealth(progress, totalTasks, nextDueDate, pushedAt) {
+      if (totalTasks === 0) return 'No Roadmap';
+      if (progress === 100) return 'Completed';
+
+      const now = new Date();
+
+      // Cek apakah ada milestone aktif yang melewati tenggat waktu (Overdue)
+      if (nextDueDate && new Date(nextDueDate) < now) {
+        return 'Overdue';
+      }
+
+      // Cek apakah proyek tidak ada aktivitas push lebih dari 30 hari (Stale)
+      const daysSinceLastPush = (now - new Date(pushedAt)) / (1000 * 60 * 60 * 24);
+      if (daysSinceLastPush > 30) {
+        return 'Stale';
+      }
+
+      return 'On Track';
+    }
+
+    /**
+     * Menormalisasi data setiap repositori menggunakan 3-Tier Fallback Logic:
+     * Prioritas 1: MILESTONE -> Prioritas 2: ROADMAP.MD -> Prioritas 3: ISSUES
+     */
+    function normalizeRepositoryRoadmap(repo) {
+      let source = 'NONE';
+      let progress = 0;
+      let completedTasks = 0;
+      let openTasks = 0;
+      let totalTasks = 0;
+      let nextDueDate = null;
+      let activeMilestoneTitle = null;
+      let milestonesList = [];
+      let checklistItems = [];
+      let rawMarkdown = null;
+
+      const milestones = repo.milestones?.nodes || [];
+      const markdownText = repo.roadmapUpper?.text || repo.roadmapLower?.text || null;
+
+      // TIER 1: Gunakan GitHub Milestones jika tersedia
+      if (milestones.length > 0) {
+        source = 'MILESTONE';
+        milestonesList = milestones.map((m) => ({
+          id: m.id,
+          title: m.title,
+          state: m.state,
+          dueOn: m.dueOn,
+          progress: Math.round(m.progressPercentage || 0),
+          open: m.openIssues?.totalCount || 0,
+          closed: m.closedIssues?.totalCount || 0
+        }));
+
+        completedTasks = milestonesList.reduce((acc, m) => acc + m.closed, 0);
+        openTasks = milestonesList.reduce((acc, m) => acc + m.open, 0);
+        totalTasks = completedTasks + openTasks;
+
+        if (totalTasks > 0) {
+          progress = Math.round((completedTasks / totalTasks) * 100);
+        } else {
+          const avgProgress = milestonesList.reduce((acc, m) => acc + m.progress, 0) / milestonesList.length;
+          progress = Math.round(avgProgress);
+          totalTasks = milestonesList.length;
+          completedTasks = milestonesList.filter(m => m.state === 'CLOSED' || m.progress === 100).length;
+          openTasks = totalTasks - completedTasks;
+        }
+
+        const nextActiveMilestone = milestones.find((m) => m.state === 'OPEN');
+        if (nextActiveMilestone) {
+          activeMilestoneTitle = nextActiveMilestone.title;
+          nextDueDate = nextActiveMilestone.dueOn;
+        } else {
+          activeMilestoneTitle = milestones[milestones.length - 1]?.title || null;
+        }
+      }
+      // TIER 2: Fallback ke file ROADMAP.md jika ada dan memiliki daftar checkbox
+      else if (markdownText) {
+        const parsedMd = parseMarkdownChecklist(markdownText);
+        if (parsedMd) {
+          source = 'ROADMAP.MD';
+          completedTasks = parsedMd.completed;
+          openTasks = parsedMd.open;
+          totalTasks = parsedMd.total;
+          progress = parsedMd.progress;
+          checklistItems = parsedMd.items;
+          rawMarkdown = parsedMd.rawText;
+        }
+      }
+
+      // TIER 3: Fallback terakhir ke rasio Open vs Closed Issues di repositori
+      if (source === 'NONE') {
+        const repoOpen = repo.openIssues?.totalCount || 0;
+        const repoClosed = repo.closedIssues?.totalCount || 0;
+        const repoTotal = repoOpen + repoClosed;
+
+        if (repoTotal > 0) {
+          source = 'ISSUES';
+          completedTasks = repoClosed;
+          openTasks = repoOpen;
+          totalTasks = repoTotal;
+          progress = Math.round((repoClosed / repoTotal) * 100);
+        }
+      }
+
+      const healthStatus = evaluateProjectHealth(progress, totalTasks, nextDueDate, repo.pushedAt);
+
+      return {
+        id: repo.id,
+        name: repo.name,
+        description: repo.description || 'Tidak ada deskripsi proyek pada repositori ini.',
+        url: repo.url,
+        isPrivate: repo.isPrivate,
+        language: repo.primaryLanguage?.name || 'Lainnya',
+        languageColor: repo.primaryLanguage?.color || '#64748b',
+        pushedAt: repo.pushedAt,
+        updatedAt: repo.updatedAt,
+        roadmap: {
+          source,
+          healthStatus,
+          progress,
+          completedTasks,
+          openTasks,
+          totalTasks,
+          activeMilestoneTitle,
+          nextDueDate,
+          milestonesList,
+          checklistItems,
+          rawMarkdown
+        }
+      };
+    }
+
+    // ============================================================================
+    // 4. FUNGSI UTAMA FETCH GITHUB GRAPHQL API V4
+    // ============================================================================
+    async function fetchAllGitHubRoadmaps(githubToken) {
+      let allRepos = [];
+      let hasNextPage = true;
+      let cursor = null;
+      let latestRateLimit = null;
+
+      while (hasNextPage) {
+        const response = await fetch(GITHUB_GRAPHQL_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${githubToken}`
+          },
+          body: JSON.stringify({
+            query: ROADMAP_QUERY,
+            variables: { cursor }
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error ${response.status}: Pastikan Personal Access Token Anda valid.`);
+        }
+
+        const result = await response.json();
+
+        if (result.errors) {
+          console.error('GitHub GraphQL Errors:', result.errors);
+          throw new Error(result.errors[0].message);
+        }
+
+        const { rateLimit, viewer } = result.data;
+        latestRateLimit = rateLimit;
+
+        const repoNodes = viewer.repositories.nodes || [];
+        const normalizedBatch = repoNodes.map(normalizeRepositoryRoadmap);
+        allRepos = [...allRepos, ...normalizedBatch];
+
+        hasNextPage = viewer.repositories.pageInfo.hasNextPage;
+        cursor = viewer.repositories.pageInfo.endCursor;
+      }
+
+      return {
+        rateLimit: latestRateLimit,
+        summary: {
+          totalProjects: allRepos.length,
+          onTrack: allRepos.filter((r) => r.roadmap.healthStatus === 'On Track').length,
+          overdue: allRepos.filter((r) => r.roadmap.healthStatus === 'Overdue').length,
+          stale: allRepos.filter((r) => r.roadmap.healthStatus === 'Stale').length,
+          completed: allRepos.filter((r) => r.roadmap.healthStatus === 'Completed').length
+        },
+        projects: allRepos
+      };
+    }
+
+    // ============================================================================
+    // 5. DATA SIMULASI REALISTIS (MODE DEMO INTERAKTIF)
+    // ============================================================================
+    function getMockRawGraphQLNodes() {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+
+      return [
+        {
+          id: 'repo-1',
+          name: 'sekawan-cloud-erp',
+          description: 'Sistem ERP multi-cabang berbasis microservice untuk manajemen inventori, kasir, dan laporan pajak otomatis.',
+          url: 'https://github.com/demo-user/sekawan-cloud-erp',
+          isPrivate: true,
+          pushedAt: new Date(now - 1 * dayMs).toISOString(),
+          primaryLanguage: { name: 'TypeScript', color: '#3178c6' },
+          milestones: {
+            totalCount: 3,
+            nodes: [
+              { id: 'm-1', title: 'v1.0 - Core Inventory & Auth', state: 'CLOSED', dueOn: new Date(now - 25 * dayMs).toISOString(), progressPercentage: 100, openIssues: { totalCount: 0 }, closedIssues: { totalCount: 14 } },
+              { id: 'm-2', title: 'v1.5 - Modul Pajak & E-Faktur', state: 'OPEN', dueOn: new Date(now + 18 * dayMs).toISOString(), progressPercentage: 75, openIssues: { totalCount: 3 }, closedIssues: { totalCount: 9 } },
+              { id: 'm-3', title: 'v2.0 - Mobile POS Sync', state: 'OPEN', dueOn: new Date(now + 45 * dayMs).toISOString(), progressPercentage: 25, openIssues: { totalCount: 6 }, closedIssues: { totalCount: 2 } }
+            ]
+          },
+          roadmapUpper: null,
+          roadmapLower: null,
+          openIssues: { totalCount: 9 },
+          closedIssues: { totalCount: 25 }
+        },
+        {
+          id: 'repo-2',
+          name: 'github-roadmap-monitor',
+          description: 'Dashboard Single-Page WebApp pemantau status roadmap seluruh repositori GitHub menggunakan GraphQL API v4.',
+          url: 'https://github.com/demo-user/github-roadmap-monitor',
+          isPrivate: false,
+          pushedAt: new Date(now - 0.2 * dayMs).toISOString(),
+          primaryLanguage: { name: 'JavaScript', color: '#f1e05a' },
+          milestones: { totalCount: 0, nodes: [] },
+          roadmapUpper: {
+            text: `# Roadmap Pengembangan\n\n## Fase 1: Fondasi GraphQL API\n- [x] Desain query GraphQL hibrida (Milestones + Blob ROADMAP.md + Issues)\n- [x] Buat parser Regex untuk membaca task list Markdown\n- [x] Implementasi kalkulasi kesehatan proyek (On Track, Overdue, Stale)\n\n## Fase 2: Antarmuka Dashboard\n- [x] Desain kartu portofolio dark mode berbasis Slate\n- [x] Tambahkan indikator kuota Rate Limit GraphQL API\n- [x] Buat modal inspeksi detail checklist & milestone\n\n## Fase 3: Integrasi Lanjutan\n- [ ] Buat endpoint proxy PHP/Node.js untuk caching server-side\n- [ ] Dukungan notifikasi Telegram untuk milestone yang Overdue`
+          },
+          roadmapLower: null,
+          openIssues: { totalCount: 2 },
+          closedIssues: { totalCount: 6 }
+        },
+        {
+          id: 'repo-3',
+          name: 'payment-gateway-id-sdk',
+          description: 'SDK Node.js unifikasi pembayaran QRIS, Virtual Account, dan E-Wallet lokal Indonesia dengan dukungan webhook.',
+          url: 'https://github.com/demo-user/payment-gateway-id-sdk',
+          isPrivate: false,
+          pushedAt: new Date(now - 5 * dayMs).toISOString(),
+          primaryLanguage: { name: 'Go', color: '#00ADD8' },
+          milestones: {
+            totalCount: 2,
+            nodes: [
+              { id: 'm-4', title: 'v1.0 - QRIS & Virtual Account', state: 'CLOSED', dueOn: new Date(now - 40 * dayMs).toISOString(), progressPercentage: 100, openIssues: { totalCount: 0 }, closedIssues: { totalCount: 10 } },
+              { id: 'm-5', title: 'v1.2 - Rekonsiliasi Otomatis & Refund API', state: 'OPEN', dueOn: new Date(now - 4 * dayMs).toISOString(), progressPercentage: 40, openIssues: { totalCount: 6 }, closedIssues: { totalCount: 4 } }
+            ]
+          },
+          roadmapUpper: null,
+          roadmapLower: null,
+          openIssues: { totalCount: 6 },
+          closedIssues: { totalCount: 14 }
+        },
+        {
+          id: 'repo-4',
+          name: 'ai-doc-summarizer-cli',
+          description: 'Alat baris perintah (CLI) berbasis Rust untuk merangkum dokumentasi teknis dan membuat changelog otomatis dari git log.',
+          url: 'https://github.com/demo-user/ai-doc-summarizer-cli',
+          isPrivate: false,
+          pushedAt: new Date(now - 8 * dayMs).toISOString(),
+          primaryLanguage: { name: 'Rust', color: '#dea584' },
+          milestones: { totalCount: 0, nodes: [] },
+          roadmapUpper: null,
+          roadmapLower: null,
+          openIssues: { totalCount: 4 },
+          closedIssues: { totalCount: 16 }
+        },
+        {
+          id: 'repo-5',
+          name: 'studio-photo-batch-tool',
+          description: 'Aplikasi pemrosesan pasfoto otomatis: hapus latar belakang, koreksi pencahayaan wajah, dan tata letak cetak.',
+          url: 'https://github.com/demo-user/studio-photo-batch-tool',
+          isPrivate: true,
+          pushedAt: new Date(now - 3 * dayMs).toISOString(),
+          primaryLanguage: { name: 'Python', color: '#3572A5' },
+          milestones: { totalCount: 0, nodes: [] },
+          roadmapUpper: {
+            text: `# Target Rilis v2.0\n\n## Core Engine\n- [x] Integrasi model segmentasi rambut presisi tinggi\n- [x] Preset ukuran cetak pasfoto 2x3, 3x4, 4x6 otomatis\n- [x] Ekspor PDF siap cetak 300 DPI\n\n## Optimasi Batch\n- [x] Pemrosesan paralel multi-thread untuk 50+ foto sekaligus\n- [x] Antarmuka drag-and-drop lokal`
+          },
+          roadmapLower: null,
+          openIssues: { totalCount: 0 },
+          closedIssues: { totalCount: 12 }
+        },
+        {
+          id: 'repo-6',
+          name: 'legacy-wp-woocommerce-sync',
+          description: 'Plugin sinkronisasi stok gudang lokal ke toko online WooCommerce menggunakan antrean background worker.',
+          url: 'https://github.com/demo-user/legacy-wp-woocommerce-sync',
+          isPrivate: true,
+          pushedAt: new Date(now - 48 * dayMs).toISOString(),
+          primaryLanguage: { name: 'PHP', color: '#4F5D95' },
+          milestones: { totalCount: 0, nodes: [] },
+          roadmapUpper: {
+            text: `# Rencana Pembaruan Plugin\n\n## Kompatibilitas HPOS\n- [x] Audit query tabel wp_postmeta lama\n- [x] Migrasi pembacaan order ke High-Performance Order Storage\n- [ ] Uji beban untuk 10.000 SKU produk\n- [ ] Pembuatan halaman log error di wp-admin\n- [ ] Rilis paket instalasi v3.0`
+          },
+          roadmapLower: null,
+          openIssues: { totalCount: 3 },
+          closedIssues: { totalCount: 2 }
+        },
+        {
+          id: 'repo-7',
+          name: 'nextjs-saas-boilerplate',
+          description: 'Template starter kit aplikasi SaaS multi-tenant dengan autentikasi RBAC, billing langganan, dan komponen UI.',
+          url: 'https://github.com/demo-user/nextjs-saas-boilerplate',
+          isPrivate: false,
+          pushedAt: new Date(now - 12 * dayMs).toISOString(),
+          primaryLanguage: { name: 'TypeScript', color: '#3178c6' },
+          milestones: {
+            totalCount: 2,
+            nodes: [
+              { id: 'm-6', title: 'v1.0 - Auth, Prisma & Multi-Tenant', state: 'CLOSED', dueOn: new Date(now - 15 * dayMs).toISOString(), progressPercentage: 100, openIssues: { totalCount: 0 }, closedIssues: { totalCount: 11 } },
+              { id: 'm-7', title: 'v2.0 - Webhook Billing & Admin Impersonation', state: 'CLOSED', dueOn: new Date(now - 2 * dayMs).toISOString(), progressPercentage: 100, openIssues: { totalCount: 0 }, closedIssues: { totalCount: 8 } }
+            ]
+          },
+          roadmapUpper: null,
+          roadmapLower: null,
+          openIssues: { totalCount: 0 },
+          closedIssues: { totalCount: 19 }
+        },
+        {
+          id: 'repo-8',
+          name: 'flutter-kurir-tracker',
+          description: 'Aplikasi mobile pelacakan kurir pengiriman barang secara real-time dengan bukti foto tanda terima.',
+          url: 'https://github.com/demo-user/flutter-kurir-tracker',
+          isPrivate: true,
+          pushedAt: new Date(now - 64 * dayMs).toISOString(),
+          primaryLanguage: { name: 'Dart', color: '#00B4AB' },
+          milestones: { totalCount: 0, nodes: [] },
+          roadmapUpper: null,
+          roadmapLower: null,
+          openIssues: { totalCount: 7 },
+          closedIssues: { totalCount: 5 }
+        },
+        {
+          id: 'repo-9',
+          name: 'dotfiles-nvim-config',
+          description: 'Konfigurasi pribadi Neovim, Tmux, dan Zsh untuk lingkungan pengembangan di Linux dan macOS.',
+          url: 'https://github.com/demo-user/dotfiles-nvim-config',
+          isPrivate: false,
+          pushedAt: new Date(now - 19 * dayMs).toISOString(),
+          primaryLanguage: { name: 'Lua', color: '#000080' },
+          milestones: { totalCount: 0, nodes: [] },
+          roadmapUpper: null,
+          roadmapLower: null,
+          openIssues: { totalCount: 0 },
+          closedIssues: { totalCount: 0 }
+        }
+      ];
+    }
+
+    // ============================================================================
+    // 6. HELPERS FORMAT TANGGAL & BADGE VISUAL
+    // ============================================================================
+    function formatRelativeTime(isoDateStr) {
+      if (!isoDateStr) return '-';
+      const diffMs = new Date() - new Date(isoDateStr);
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffHours < 1) return 'Baru saja';
+      if (diffHours < 24) return `${diffHours} jam lalu`;
+      if (diffDays === 1) return 'Kemarin';
+      return `${diffDays} hari lalu`;
+    }
+
+    function formatShortDate(isoDateStr) {
+      if (!isoDateStr) return 'Tanpa tenggat';
+      const d = new Date(isoDateStr);
+      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function getSourceBadgeHTML(source) {
+      switch (source) {
+        case 'MILESTONE':
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30" title="Sumber Prioritas 1: GitHub Milestones">
+            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+            </svg>
+            MILESTONE
+          </span>`;
+        case 'ROADMAP.MD':
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium bg-cyan-500/15 text-cyan-300 border border-cyan-500/30" title="Sumber Prioritas 2: File ROADMAP.md di branch HEAD">
+            <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            ROADMAP.MD
+          </span>`;
+        case 'ISSUES':
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30" title="Sumber Prioritas 3: Rasio Closed vs Open Issues">
+            <svg class="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            ISSUES
+          </span>`;
+        default:
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium bg-slate-800 text-slate-400 border border-slate-700">
+            NONE
+          </span>`;
+      }
+    }
+
+    function getHealthBadgeHTML(healthStatus) {
+      switch (healthStatus) {
+        case 'On Track':
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>On Track
+          </span>`;
+        case 'Overdue':
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30">
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>Overdue
+          </span>`;
+        case 'Stale':
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Stale (&gt;30h)
+          </span>`;
+        case 'Completed':
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/30">
+            <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>Completed
+          </span>`;
+        default:
+          return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+            No Roadmap
+          </span>`;
+      }
+    }
+
+    function getProgressBarColorClass(healthStatus) {
+      switch (healthStatus) {
+        case 'On Track': return 'from-emerald-500 to-teal-400';
+        case 'Overdue': return 'from-rose-500 to-orange-400';
+        case 'Stale': return 'from-amber-500 to-yellow-400';
+        case 'Completed': return 'from-sky-500 to-indigo-400';
+        default: return 'from-slate-600 to-slate-500';
+      }
+    }
+
+    // ============================================================================
+    // 7. RENDERING KOMPONEN UI (SUMMARY, KARTU, TABEL)
+    // ============================================================================
+    function updateHeaderAndSummaryUI() {
+      // Mode badge
+      const modeBadge = document.getElementById('modeBadge');
+      if (appState.isLiveMode && appState.viaProxy) {
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+        modeBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live via Server Aman`;
+      } else if (appState.isLiveMode) {
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+        modeBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live GitHub API`;
+      } else {
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30';
+        modeBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Mode Demo Simulasi`;
+      }
+
+      // Rate limit panel
+      const { limit, remaining, cost, resetAt } = appState.rateLimit;
+      const pct = Math.max(0, Math.min(100, (remaining / limit) * 100));
+      document.getElementById('rateLimitNumbers').textContent = `${remaining} / ${limit}`;
+      document.getElementById('rateLimitBar').style.width = `${pct}%`;
+      document.getElementById('rateLimitCost').textContent = `Cost: ${cost} pt/sync`;
+
+      if (resetAt) {
+        const resetTime = new Date(resetAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        document.getElementById('rateLimitReset').textContent = `Reset: ${resetTime}`;
+      }
+
+      // Summary metrics
+      const projects = appState.projects;
+      const total = projects.length;
+      const onTrack = projects.filter(p => p.roadmap.healthStatus === 'On Track').length;
+      const overdue = projects.filter(p => p.roadmap.healthStatus === 'Overdue').length;
+      const stale = projects.filter(p => p.roadmap.healthStatus === 'Stale').length;
+      const completed = projects.filter(p => p.roadmap.healthStatus === 'Completed').length;
+
+      const activeRoadmapProjects = projects.filter(p => p.roadmap.totalTasks > 0);
+      const avgProgress = activeRoadmapProjects.length > 0
+        ? Math.round(activeRoadmapProjects.reduce((acc, p) => acc + p.roadmap.progress, 0) / activeRoadmapProjects.length)
+        : 0;
+
+      const totalCompletedTasks = projects.reduce((acc, p) => acc + p.roadmap.completedTasks, 0);
+      const grandTotalTasks = projects.reduce((acc, p) => acc + p.roadmap.totalTasks, 0);
+
+      document.getElementById('statTotalProjects').textContent = total;
+      document.getElementById('statOnTrack').textContent = onTrack;
+      document.getElementById('statOverdue').textContent = overdue;
+      document.getElementById('statStale').textContent = stale;
+      document.getElementById('statCompleted').textContent = completed;
+
+      document.getElementById('statAvgProgressBadge').textContent = `${avgProgress}%`;
+      document.getElementById('statAvgProgressBar').style.width = `${avgProgress}%`;
+      document.getElementById('statTotalTasksRatio').textContent = `${totalCompletedTasks} / ${grandTotalTasks} task selesai`;
+
+      const syncTimeFormatted = appState.lastSyncedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('lastSyncedText').textContent = `• Sinkronisasi terakhir: ${syncTimeFormatted}`;
+    }
+
+    function applyFiltersAndRender() {
+      const query = document.getElementById('searchInput').value.trim().toLowerCase();
+      const healthFilter = document.getElementById('filterHealth').value;
+      const sourceFilter = document.getElementById('filterSource').value;
+      const sortOrder = document.getElementById('sortOrder').value;
+
+      // Toggle tombol clear search
+      document.getElementById('clearSearchBtn').classList.toggle('hidden', query.length === 0);
+
+      let result = appState.projects.filter((proj) => {
+        const matchesQuery =
+          !query ||
+          proj.name.toLowerCase().includes(query) ||
+          proj.description.toLowerCase().includes(query) ||
+          proj.language.toLowerCase().includes(query) ||
+          (proj.roadmap.activeMilestoneTitle && proj.roadmap.activeMilestoneTitle.toLowerCase().includes(query));
+
+        const matchesHealth = healthFilter === 'ALL' || proj.roadmap.healthStatus === healthFilter;
+        const matchesSource = sourceFilter === 'ALL' || proj.roadmap.source === sourceFilter;
+
+        return matchesQuery && matchesHealth && matchesSource;
+      });
+
+      // Sorting
+      result.sort((a, b) => {
+        if (sortOrder === 'PUSHED_DESC') {
+          return new Date(b.pushedAt) - new Date(a.pushedAt);
+        }
+        if (sortOrder === 'PROGRESS_DESC') {
+          return b.roadmap.progress - a.roadmap.progress;
+        }
+        if (sortOrder === 'PROGRESS_ASC') {
+          return a.roadmap.progress - b.roadmap.progress;
+        }
+        if (sortOrder === 'DUE_ASC') {
+          const dateA = a.roadmap.nextDueDate ? new Date(a.roadmap.nextDueDate).getTime() : Infinity;
+          const dateB = b.roadmap.nextDueDate ? new Date(b.roadmap.nextDueDate).getTime() : Infinity;
+          return dateA - dateB;
+        }
+        if (sortOrder === 'NAME_ASC') {
+          return a.name.localeCompare(b.name);
+        }
+        return 0;
+      });
+
+      appState.filteredProjects = result;
+
+      document.getElementById('visibleCount').textContent = result.length;
+      document.getElementById('totalCountText').textContent = appState.projects.length;
+
+      const emptyState = document.getElementById('emptyState');
+      const gridView = document.getElementById('projectsGridView');
+      const tableView = document.getElementById('projectsTableView');
+
+      if (result.length === 0) {
+        emptyState.classList.remove('hidden');
+        gridView.classList.add('hidden');
+        tableView.classList.add('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      if (appState.viewMode === 'GRID') {
+        gridView.classList.remove('hidden');
+        tableView.classList.add('hidden');
+        renderGridCards(result);
+      } else {
+        gridView.classList.add('hidden');
+        tableView.classList.remove('hidden');
+        renderTableRows(result);
+      }
+    }
+
+    function renderGridCards(projects) {
+      const container = document.getElementById('projectsGridView');
+      container.innerHTML = projects.map((proj) => {
+        const { roadmap } = proj;
+        const barGradient = getProgressBarColorClass(roadmap.healthStatus);
+        const visibilityBadge = proj.isPrivate
+          ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700">Private</span>`
+          : `<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 text-slate-400 border border-slate-800">Public</span>`;
+
+        const targetInfo = roadmap.activeMilestoneTitle
+          ? `<div class="flex items-center justify-between text-xs bg-slate-950/80 border border-slate-800/80 rounded-xl px-3 py-2">
+               <span class="text-slate-300 truncate font-medium" title="${escapeHtml(roadmap.activeMilestoneTitle)}">🎯 ${escapeHtml(roadmap.activeMilestoneTitle)}</span>
+               <span class="text-[11px] font-mono ${roadmap.healthStatus === 'Overdue' ? 'text-rose-400 font-semibold' : 'text-slate-400'} shrink-0 ml-2">${formatShortDate(roadmap.nextDueDate)}</span>
+             </div>`
+          : roadmap.source === 'ROADMAP.MD'
+          ? `<div class="flex items-center justify-between text-xs bg-slate-950/80 border border-slate-800/80 rounded-xl px-3 py-2">
+               <span class="text-slate-300 truncate">📄 Checklist dari <code class="text-cyan-300 font-mono">ROADMAP.md</code></span>
+               <span class="text-[11px] font-mono text-slate-400">${roadmap.completedTasks} selesai</span>
+             </div>`
+          : roadmap.source === 'ISSUES'
+          ? `<div class="flex items-center justify-between text-xs bg-slate-950/80 border border-slate-800/80 rounded-xl px-3 py-2">
+               <span class="text-slate-300 truncate">⚙️ Kalkulasi rasio GitHub Issues</span>
+               <span class="text-[11px] font-mono text-slate-400">${roadmap.openTasks} open</span>
+             </div>`
+          : `<div class="flex items-center justify-between text-xs bg-slate-950/40 border border-slate-800/50 rounded-xl px-3 py-2 text-slate-500">
+               <span>Belum ada Milestone / ROADMAP.md</span>
+             </div>`;
+
+        return `
+          <article class="bg-slate-900/85 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition duration-200 shadow-lg shadow-slate-950/50 group">
+            <div>
+              <!-- Top Badges: Source & Health -->
+              <div class="flex items-center justify-between gap-2 mb-3">
+                ${getSourceBadgeHTML(roadmap.source)}
+                ${getHealthBadgeHTML(roadmap.healthStatus)}
+              </div>
+
+              <!-- Repo Name & Visibility -->
+              <div class="flex items-center justify-between gap-2">
+                <a href="${proj.url}" target="_blank" rel="noopener noreferrer" class="text-base font-bold text-white hover:text-indigo-400 transition font-mono truncate">
+                  ${escapeHtml(proj.name)}
+                </a>
+                ${visibilityBadge}
+              </div>
+
+              <!-- Description -->
+              <p class="text-xs text-slate-400 mt-1.5 line-clamp-2 min-h-[32px]">
+                ${escapeHtml(proj.description)}
+              </p>
+
+              <!-- Progress Section -->
+              <div class="mt-4 pt-4 border-t border-slate-800/80 space-y-2.5">
+                <div class="flex items-baseline justify-between">
+                  <span class="text-xs font-medium text-slate-300">Progres Roadmap</span>
+                  <div class="flex items-baseline gap-2">
+                    <span class="text-xs font-mono text-slate-400">(${roadmap.completedTasks}/${roadmap.totalTasks} task)</span>
+                    <span class="text-sm font-bold font-mono text-white">${roadmap.progress}%</span>
+                  </div>
+                </div>
+
+                <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80">
+                  <div class="h-full bg-gradient-to-r ${barGradient} rounded-full transition-all duration-500" style="width: ${roadmap.progress}%"></div>
+                </div>
+
+                ${targetInfo}
+              </div>
+            </div>
+
+            <!-- Card Footer -->
+            <div class="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between gap-2 text-xs">
+              <div class="flex items-center gap-3 text-slate-400">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${proj.languageColor}"></span>
+                  <span>${escapeHtml(proj.language)}</span>
+                </span>
+                <span class="text-slate-600">•</span>
+                <span title="Push terakhir: ${proj.pushedAt}">${formatRelativeTime(proj.pushedAt)}</span>
+              </div>
+
+              <button onclick="openDetailModal('${proj.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 hover:border-indigo-500 transition cursor-pointer">
+                <span>Detail Roadmap</span>
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderTableRows(projects) {
+      const tbody = document.getElementById('projectsTableBody');
+      tbody.innerHTML = projects.map((proj) => {
+        const { roadmap } = proj;
+        const barGradient = getProgressBarColorClass(roadmap.healthStatus);
+        return `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-3.5 px-4">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${proj.languageColor}"></span>
+                <div>
+                  <a href="${proj.url}" target="_blank" rel="noopener noreferrer" class="font-mono font-semibold text-white hover:text-indigo-400">${escapeHtml(proj.name)}</a>
+                  <span class="ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">${proj.isPrivate ? 'Private' : 'Public'}</span>
+                </div>
+              </div>
+            </td>
+            <td class="py-3.5 px-4">${getSourceBadgeHTML(roadmap.source)}</td>
+            <td class="py-3.5 px-4">${getHealthBadgeHTML(roadmap.healthStatus)}</td>
+            <td class="py-3.5 px-4">
+              <div class="flex items-center justify-between text-[11px] font-mono mb-1">
+                <span class="text-white font-semibold">${roadmap.progress}%</span>
+                <span class="text-slate-400">${roadmap.completedTasks}/${roadmap.totalTasks} task</span>
+              </div>
+              <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r ${barGradient} rounded-full" style="width: ${roadmap.progress}%"></div>
+              </div>
+            </td>
+            <td class="py-3.5 px-4 font-mono text-slate-300">
+              ${roadmap.activeMilestoneTitle ? `<div class="truncate max-w-[160px]">${escapeHtml(roadmap.activeMilestoneTitle)}</div><div class="text-[10px] text-slate-400">${formatShortDate(roadmap.nextDueDate)}</div>` : '<span class="text-slate-500">-</span>'}
+            </td>
+            <td class="py-3.5 px-4 text-slate-400">${formatRelativeTime(proj.pushedAt)}</td>
+            <td class="py-3.5 px-4 text-right">
+              <button onclick="openDetailModal('${proj.id}')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white transition cursor-pointer">
+                Detail
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ============================================================================
+    // 8. MODAL DETAIL ROADMAP (MILESTONES / ROADMAP.MD CHECKLIST / ISSUES)
+    // ============================================================================
+    function openDetailModal(projectId) {
+      const proj = appState.projects.find(p => p.id === projectId);
+      if (!proj) return;
+      appState.selectedProject = proj;
+
+      const { roadmap } = proj;
+      document.getElementById('modalHeaderBadges').innerHTML = `
+        ${getSourceBadgeHTML(roadmap.source)}
+        ${getHealthBadgeHTML(roadmap.healthStatus)}
+        <span class="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-slate-800 text-slate-300">${escapeHtml(proj.language)}</span>
+      `;
+      document.getElementById('modalRepoName').textContent = proj.name;
+      document.getElementById('modalRepoDesc').textContent = proj.description;
+      document.getElementById('modalGithubLink').href = proj.url;
+
+      const bodyEl = document.getElementById('modalBodyContent');
+      const barGradient = getProgressBarColorClass(roadmap.healthStatus);
+
+      let detailSectionHTML = '';
+
+      if (roadmap.source === 'MILESTONE') {
+        detailSectionHTML = `
+          <div class="space-y-3">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Daftar GitHub Milestones (${roadmap.milestonesList.length})</h3>
+            <div class="space-y-2.5">
+              ${roadmap.milestonesList.map(m => `
+                <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800/90 space-y-2">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                      <span class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold ${m.state === 'CLOSED' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'}">${m.state}</span>
+                      <span class="text-xs font-semibold text-white">${escapeHtml(m.title)}</span>
+                    </div>
+                    <span class="text-xs font-mono text-slate-400">Due: ${formatShortDate(m.dueOn)}</span>
+                  </div>
+                  <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                    <div class="h-full bg-indigo-500 rounded-full" style="width: ${m.progress}%"></div>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                    <span>${m.closed} closed / ${m.open} open issues</span>
+                    <span class="text-white font-semibold">${m.progress}%</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else if (roadmap.source === 'ROADMAP.MD') {
+        detailSectionHTML = `
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Hasil Parsing Checklist <code class="text-cyan-300">HEAD:ROADMAP.md</code></h3>
+              <span class="text-xs font-mono text-cyan-300">${roadmap.completedTasks} selesai, ${roadmap.openTasks} tersisa</span>
+            </div>
+            <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+              ${roadmap.checklistItems.map(item => `
+                <div class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs">
+                  <span class="mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${item.done ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-900 text-slate-500 border border-slate-700'}">
+                    ${item.done ? '✓' : ''}
+                  </span>
+                  <div class="flex-1">
+                    <p class="${item.done ? 'line-through text-slate-400' : 'text-slate-100'}">${escapeHtml(item.text)}</p>
+                    <span class="text-[10px] font-mono text-slate-500">${escapeHtml(item.section)}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else if (roadmap.source === 'ISSUES') {
+        detailSectionHTML = `
+          <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+            <h3 class="font-semibold text-amber-300">Kalkulasi Fallback Tier 3: Rasio GitHub Issues</h3>
+            <p class="text-slate-400">Repositori ini belum memiliki GitHub Milestones maupun file <code class="text-slate-200">ROADMAP.md</code>, sehingga progres dihitung otomatis dari rasio penutupan Issues.</p>
+            <div class="grid grid-cols-2 gap-3 pt-2">
+              <div class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                <span class="text-slate-400 block">Closed Issues (Selesai)</span>
+                <span class="text-lg font-bold font-mono text-emerald-400">${roadmap.completedTasks}</span>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                <span class="text-slate-400 block">Open Issues (Aktif)</span>
+                <span class="text-lg font-bold font-mono text-amber-400">${roadmap.openTasks}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        detailSectionHTML = `
+          <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
+            Repositori ini belum memiliki Milestone, file <code class="text-slate-200">ROADMAP.md</code>, ataupun Issues. Tambahkan salah satu di GitHub untuk mulai memantau progresnya secara otomatis.
+          </div>
+        `;
+      }
+
+      bodyEl.innerHTML = `
+        <!-- Overall Progress Box -->
+        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400">Total Akumulasi Progres</span>
+            <span class="font-mono font-bold text-white text-sm">${roadmap.progress}% (${roadmap.completedTasks}/${roadmap.totalTasks} task)</span>
+          </div>
+          <div class="w-full h-3 bg-slate-900 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r ${barGradient} rounded-full" style="width: ${roadmap.progress}%"></div>
+          </div>
+        </div>
+        ${detailSectionHTML}
+      `;
+
+      const modal = document.getElementById('detailModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeDetailModal() {
+      const modal = document.getElementById('detailModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    // ============================================================================
+    // 9. AKSI INTERAKTIF, TOKEN MANAGEMENT & CLIPBOARD
+    // ============================================================================
+    function loadDemoData(showNotification = false) {
+      hideErrorBanner();
+      const rawMockNodes = getMockRawGraphQLNodes();
+      const normalized = rawMockNodes.map(normalizeRepositoryRoadmap);
+
+      appState.isLiveMode = false;
+      appState.viaProxy = false;
+      appState.lastSyncedAt = new Date();
+      appState.rateLimit = {
+        limit: 5000,
+        cost: 1,
+        remaining: 4999,
+        resetAt: new Date(Date.now() + 3600 * 1000).toISOString()
+      };
+      appState.projects = normalized;
+
+      updateHeaderAndSummaryUI();
+      applyFiltersAndRender();
+
+      if (showNotification) {
+        showToast('Mode Demo Simulasi dimuat (9 proyek contoh).', 'info');
+      }
+    }
+
+    async function fetchViaProxy(forceRefresh) {
+      const url = forceRefresh ? `${PROXY_ENDPOINT}?force=1` : PROXY_ENDPOINT;
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        const reason = (data && data.message) || `HTTP ${response.status}`;
+        const err = new Error(reason);
+        err.code = (data && data.error) || 'PROXY_FAIL';
+        throw err;
+      }
+      return data; // { ok, cached, cachedAt, rateLimit, repos[] (mentah GraphQL) }
+    }
+
+    function applyProxyData(data) {
+      appState.isLiveMode = true;
+      appState.viaProxy = true;
+      appState.lastSyncedAt = data.cachedAt ? new Date(data.cachedAt) : new Date();
+      appState.rateLimit = data.rateLimit || appState.rateLimit;
+      appState.projects = (data.repos || []).map(normalizeRepositoryRoadmap);
+      updateHeaderAndSummaryUI();
+      applyFiltersAndRender();
+    }
+
+    async function tryProxyFirst(forceRefresh, silent) {
+      // Kembalikan true bila proxy berhasil. NO_TOKEN / gagal diam = false (lanjut fallback lama).
+      try {
+        const data = await fetchViaProxy(forceRefresh);
+        applyProxyData(data);
+        return true;
+      } catch (err) {
+        if (!silent) {
+          if (err.code === 'NO_TOKEN') {
+            showToast('Server belum punya token. Pakai Mode Demo atau input token manual.', 'info');
+          } else {
+            showToast(`Proxy server gagal: ${err.message}. Coba token manual.`, 'error');
+          }
+        }
+        return false;
+      }
+    }
+
+    async function handleSyncNow() {
+      const savedToken = localStorage.getItem(STORAGE_KEY_TOKEN);
+      const syncIcon = document.getElementById('syncIcon');
+      syncIcon.classList.add('animate-spin');
+
+      try {
+        // Prioritas: server proxy dulu (token aman di server). force=1 = lewati cache.
+        if (await tryProxyFirst(true, true)) {
+          showToast('Data live disegarkan via server aman.', 'success');
+          return;
+        }
+        if (savedToken) {
+          await executeLiveFetch(savedToken);
+        } else {
+          await new Promise(r => setTimeout(r, 400));
+          loadDemoData(false);
+          showToast('Data Mode Demo disegarkan. Masukkan Token GitHub untuk sinkronisasi akun asli.', 'info');
+        }
+      } finally {
+        syncIcon.classList.remove('animate-spin');
+      }
+    }
+
+    async function executeLiveFetch(token) {
+      hideErrorBanner();
+      const skeleton = document.getElementById('loadingSkeleton');
+      const gridView = document.getElementById('projectsGridView');
+      skeleton.classList.remove('hidden');
+      gridView.classList.add('hidden');
+
+      try {
+        const data = await fetchAllGitHubRoadmaps(token);
+        appState.isLiveMode = true;
+        appState.viaProxy = false;
+        appState.lastSyncedAt = new Date();
+        appState.rateLimit = data.rateLimit;
+        appState.projects = data.projects;
+
+        // Simpan cache lokal jika pengguna memilih remember
+        if (document.getElementById('rememberTokenCheckbox').checked) {
+          localStorage.setItem(STORAGE_KEY_CACHE, JSON.stringify({
+            timestamp: Date.now(),
+            rateLimit: data.rateLimit,
+            projects: data.projects
+          }));
+        }
+
+        updateHeaderAndSummaryUI();
+        applyFiltersAndRender();
+        showToast(`Berhasil menarik ${data.projects.length} repositori dari GitHub GraphQL API v4!`, 'success');
+      } catch (err) {
+        showErrorBanner('Gagal terhubung ke GitHub GraphQL API v4', err.message);
+        showToast('Gagal mengambil data dari GitHub API.', 'error');
+      } finally {
+        skeleton.classList.add('hidden');
+      }
+    }
+
+    function openTokenModal() {
+      const savedToken = localStorage.getItem(STORAGE_KEY_TOKEN) || '';
+      document.getElementById('githubTokenInput').value = savedToken;
+      const modal = document.getElementById('tokenModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeTokenModal() {
+      const modal = document.getElementById('tokenModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    async function saveTokenAndFetch() {
+      const tokenInput = document.getElementById('githubTokenInput').value.trim();
+      if (!tokenInput) {
+        showToast('Masukkan Personal Access Token GitHub terlebih dahulu.', 'error');
+        return;
+      }
+
+      if (document.getElementById('rememberTokenCheckbox').checked) {
+        localStorage.setItem(STORAGE_KEY_TOKEN, tokenInput);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_TOKEN);
+      }
+
+      closeTokenModal();
+      await executeLiveFetch(tokenInput);
+    }
+
+    function clearSavedToken() {
+      localStorage.removeItem(STORAGE_KEY_TOKEN);
+      localStorage.removeItem(STORAGE_KEY_CACHE);
+      document.getElementById('githubTokenInput').value = '';
+      showToast('Token & cache lokal telah dihapus dari browser.', 'info');
+    }
+
+    function openQueryInspectorModal() {
+      document.getElementById('graphqlQueryCodeBlock').textContent = ROADMAP_QUERY;
+      const modal = document.getElementById('queryInspectorModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeQueryInspectorModal() {
+      const modal = document.getElementById('queryInspectorModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function setViewMode(mode) {
+      appState.viewMode = mode;
+      const btnGrid = document.getElementById('btnViewGrid');
+      const btnTable = document.getElementById('btnViewTable');
+
+      if (mode === 'GRID') {
+        btnGrid.className = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-indigo-600 text-white transition cursor-pointer';
+        btnTable.className = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition cursor-pointer';
+      } else {
+        btnTable.className = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-indigo-600 text-white transition cursor-pointer';
+        btnGrid.className = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition cursor-pointer';
+      }
+      applyFiltersAndRender();
+    }
+
+    function quickFilterHealth(status) {
+      document.getElementById('filterHealth').value = status;
+      applyFiltersAndRender();
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      applyFiltersAndRender();
+    }
+
+    function resetAllFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('filterHealth').value = 'ALL';
+      document.getElementById('filterSource').value = 'ALL';
+      document.getElementById('sortOrder').value = 'PUSHED_DESC';
+      applyFiltersAndRender();
+    }
+
+    function copyTextToClipboard(text, successMsg) {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        showToast(successMsg, 'success');
+      } catch (err) {
+        showToast('Gagal menyalin teks ke clipboard.', 'error');
+      }
+      document.body.removeChild(textArea);
+    }
+
+    function copyCurrentProjectJson() {
+      if (!appState.selectedProject) return;
+      const jsonStr = JSON.stringify(appState.selectedProject, null, 2);
+      copyTextToClipboard(jsonStr, `JSON proyek "${appState.selectedProject.name}" berhasil disalin!`);
+    }
+
+    function copyGraphqlQuery() {
+      copyTextToClipboard(ROADMAP_QUERY, 'Query GraphQL v4 berhasil disalin ke clipboard!');
+    }
+
+    function showErrorBanner(title, message) {
+      document.getElementById('errorBannerTitle').textContent = title;
+      document.getElementById('errorBannerMessage').textContent = message;
+      document.getElementById('errorBanner').classList.remove('hidden');
+    }
+
+    function hideErrorBanner() {
+      document.getElementById('errorBanner').classList.add('hidden');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const colorClasses =
+        type === 'success'
+          ? 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200'
+          : type === 'error'
+          ? 'bg-rose-950/95 border-rose-500/40 text-rose-200'
+          : 'bg-slate-900/95 border-indigo-500/40 text-slate-200';
+
+      toast.className = `pointer-events-auto border rounded-xl px-4 py-3 text-xs font-medium shadow-xl backdrop-blur-md flex items-center justify-between gap-3 transition-all duration-300 ${colorClasses}`;
+      toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3400);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // ============================================================================
+    // 10. INISIALISASI SAAT HALAMAN DIMUAT
+    // ============================================================================
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Tutup modal saat klik area luar (backdrop)
+      ['detailModal', 'tokenModal', 'queryInspectorModal'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('click', (e) => {
+          if (e.target === el) {
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+          }
+        });
+      });
+
+      // Default: coba server proxy dulu (tanpa force, boleh pakai cache).
+      // Gagal diam (belum ada server / belum ada token) -> lanjut alur lama di bawah.
+      try {
+        if (await tryProxyFirst(false, true)) return;
+      } catch (e) {
+        console.warn('Proxy tidak tersedia, lanjut alur lokal.');
+      }
+
+      // Cek apakah ada cache lokal atau token tersimpan
+      const savedCache = localStorage.getItem(STORAGE_KEY_CACHE);
+      const savedToken = localStorage.getItem(STORAGE_KEY_TOKEN);
+
+      if (savedCache && savedToken) {
+        try {
+          const parsed = JSON.parse(savedCache);
+          appState.isLiveMode = true;
+          appState.viaProxy = false;
+          appState.lastSyncedAt = new Date(parsed.timestamp);
+          appState.rateLimit = parsed.rateLimit;
+          appState.projects = parsed.projects;
+          updateHeaderAndSummaryUI();
+          applyFiltersAndRender();
+          return;
+        } catch (e) {
+          console.warn('Cache korup, memuat ulang mode demo.');
+        }
+      }
+
+      // Default: jalankan Mode Demo Simulasi agar langsung interaktif
+      loadDemoData(false);
+    });
+  </script>
+</body>
+</html>
