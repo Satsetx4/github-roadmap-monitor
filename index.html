@@ -351,8 +351,8 @@
             </select>
           </div>
 
-          <!-- View Mode Toggle (Grid vs Table) -->
-          <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800 shrink-0">
+          <!-- View Mode Toggle (Grid vs Table vs Timeline vs Kanban) -->
+          <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800 shrink-0 max-w-full overflow-x-auto">
             <button id="btnViewGrid" onclick="setViewMode('GRID')" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-indigo-600 text-white transition cursor-pointer">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -364,6 +364,18 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
               </svg>
               <span>Tabel</span>
+            </button>
+            <button id="btnViewTimeline" onclick="setViewMode('TIMELINE')" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Timeline</span>
+            </button>
+            <button id="btnViewKanban" onclick="setViewMode('KANBAN')" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+              </svg>
+              <span>Kanban</span>
             </button>
           </div>
 
@@ -432,6 +444,12 @@
         </table>
       </div>
     </section>
+
+    <!-- ================= TIMELINE VIEW ================= -->
+    <section id="projectsTimelineView" class="hidden"></section>
+
+    <!-- ================= KANBAN VIEW ================= -->
+    <section id="projectsKanbanView" class="hidden"></section>
 
     <!-- Empty State -->
     <div id="emptyState" class="hidden bg-slate-900/50 border border-slate-800/80 rounded-2xl p-12 text-center max-w-lg mx-auto my-8">
@@ -608,7 +626,49 @@
     const STORAGE_KEY_TOKEN = 'gh_roadmap_monitor_pat';
     const STORAGE_KEY_CACHE = 'gh_roadmap_monitor_cache_v1';
 
-    const ROADMAP_QUERY = `query GetAllProjectRoadmaps($cursor: String) {
+    const ROADMAP_QUERY_NODES_TAIL = `
+        openIssues: issues(states: OPEN) { totalCount }
+        closedIssues: issues(states: CLOSED) { totalCount }
+        projectsV2(first: 10) {
+          totalCount
+          nodes {
+            id
+            title
+            number
+            url
+            closed
+            fieldValues(first: 20) {
+              nodes {
+                __typename
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                  field { ... on ProjectV2SingleSelectField { name } }
+                }
+                ... on ProjectV2ItemFieldDateValue {
+                  date
+                  field { ... on ProjectV2Field { name } }
+                }
+                ... on ProjectV2ItemFieldTextValue {
+                  text
+                  field { ... on ProjectV2Field { name } }
+                }
+              }
+            }
+            fields(first: 20) {
+              nodes {
+                __typename
+                ... on ProjectV2SingleSelectField { name }
+                ... on ProjectV2Field { name }
+              }
+            }
+          }
+        }`;
+
+    function buildRoadmapQuery(withProjectsV2) {
+      const tail = withProjectsV2 ? ROADMAP_QUERY_NODES_TAIL : `
+        openIssues: issues(states: OPEN) { totalCount }
+        closedIssues: issues(states: CLOSED) { totalCount }`;
+      return `query GetAllProjectRoadmaps($cursor: String) {
   rateLimit {
     limit
     cost
@@ -658,12 +718,55 @@
         roadmapLower: object(expression: "HEAD:roadmap.md") {
           ... on Blob { text }
         }
-        openIssues: issues(states: OPEN) { totalCount }
-        closedIssues: issues(states: CLOSED) { totalCount }
+${tail}
       }
     }
   }
 }`;
+    }
+
+    const ROADMAP_QUERY = buildRoadmapQuery(true);
+    const ROADMAP_QUERY_BASE = buildRoadmapQuery(false);
+
+    async function postGraphQLPage(githubToken, query, cursor) {
+      const response = await fetch(GITHUB_GRAPHQL_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${githubToken}`
+        },
+        body: JSON.stringify({
+          query,
+          variables: { cursor }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP Error ${response.status}: Pastikan Personal Access Token Anda valid.`);
+      }
+
+      const result = await response.json();
+
+      if (result.errors) {
+        console.error('GitHub GraphQL Errors:', result.errors);
+        throw new Error(result.errors[0].message);
+      }
+
+      return result.data;
+    }
+
+    async function postGraphQLWithProjectsFallback(githubToken, cursor) {
+      // Fallback: token lama tanpa scope Projects / repo tanpa Projects bisa tolak blok projectsV2.
+      try {
+        return { data: await postGraphQLPage(githubToken, ROADMAP_QUERY, cursor), usedFallback: false };
+      } catch (e) {
+        if (/projectsV2/i.test(String((e && e.message) || e))) {
+          console.warn('projectsV2 ditolak API, pakai query dasar tanpa Projects.');
+          return { data: await postGraphQLPage(githubToken, ROADMAP_QUERY_BASE, cursor), usedFallback: true };
+        }
+        throw e;
+      }
+    }
 
     // ============================================================================
     // 2. STATE GLOBAL APLIKASI
@@ -725,14 +828,77 @@
         }
       }
 
+      // P3 (aditif): agregasi progres per section sesuai urutan kemunculan pertama.
+      const bySection = new Map();
+      for (const it of items) {
+        if (!bySection.has(it.section)) bySection.set(it.section, { done: 0, total: 0 });
+        const acc = bySection.get(it.section);
+        acc.total += 1;
+        if (it.done) acc.done += 1;
+      }
+      const phaseProgress = [...bySection.entries()].map(([section, v]) => ({
+        section,
+        done: v.done,
+        total: v.total,
+        progress: v.total > 0 ? Math.round((v.done / v.total) * 100) : 0
+      }));
+
       return {
         completed,
         open,
         total,
         progress: Math.round((completed / total) * 100),
         items,
+        phaseProgress,
         rawText: markdownText
       };
+    }
+
+    /**
+     * Normalisasi Projects v2 — null-toleran, nama field defensif.
+     * Custom field Status / Target Date beda per board; tak pernah throw.
+     */
+    function normalizeProjectsV2(repo) {
+      const nodes = repo?.projectsV2?.nodes || repo?.projects?.nodes || [];
+      if (!Array.isArray(nodes)) return [];
+      return nodes
+        .filter((p) => p && typeof p === 'object')
+        .map((p) => {
+          const status =
+            p?.status?.name ??
+            p?.Status ??
+            p?.status ??
+            (typeof p?.closed === 'boolean' ? (p.closed ? 'Closed' : 'Open') : null);
+          const targetDate =
+            p?.targetDate ??
+            p?.target ??
+            p?.['Target Date'] ??
+            p?.dueOn ??
+            p?.dueDate ??
+            null;
+          return {
+            id: p?.id ?? null,
+            title: p?.title ?? p?.name ?? 'Untitled Project',
+            status: typeof status === 'string' ? status : status ?? null,
+            targetDate: typeof targetDate === 'string' ? targetDate : targetDate ?? null
+          };
+        });
+    }
+
+    function getProjectsV2BadgeHTML(projectsV2) {
+      const n = (projectsV2 || []).length;
+      if (!n) return '';
+      return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono bg-indigo-500/15 text-indigo-300 border border-indigo-500/30" title="${n} GitHub Projects v2">▦ Projects×${n}</span>`;
+    }
+
+    function phaseBarsHTML(phaseProgress, max) {
+      const list = (phaseProgress || []).slice(0, max || 3);
+      const rest = (phaseProgress || []).length - list.length;
+      return list.map(p => `
+        <div>
+          <div class="flex justify-between text-[10px] font-mono text-slate-400"><span class="truncate">${escapeHtml(p.section)}</span><span>${p.progress}%</span></div>
+          <div class="h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/70"><div class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full" style="width:${p.progress}%"></div></div>
+        </div>`).join('') + (rest > 0 ? `<div class="text-[10px] font-mono text-slate-500">+${rest} fase lain</div>` : '');
     }
 
     /**
@@ -773,6 +939,8 @@
       let milestonesList = [];
       let checklistItems = [];
       let rawMarkdown = null;
+      let phaseProgress = [];
+      let projectsV2 = [];
 
       const milestones = repo.milestones?.nodes || [];
       const markdownText = repo.roadmapUpper?.text || repo.roadmapLower?.text || null;
@@ -822,6 +990,7 @@
           totalTasks = parsedMd.total;
           progress = parsedMd.progress;
           checklistItems = parsedMd.items;
+          phaseProgress = parsedMd.phaseProgress || [];
           rawMarkdown = parsedMd.rawText;
         }
       }
@@ -840,6 +1009,9 @@
           progress = Math.round((repoClosed / repoTotal) * 100);
         }
       }
+
+      // Tier-3 tak ubah skema; P3 isi Projects v2 di sini (null-toleran).
+      projectsV2 = normalizeProjectsV2(repo);
 
       const healthStatus = evaluateProjectHealth(progress, totalTasks, nextDueDate, repo.pushedAt);
 
@@ -864,7 +1036,9 @@
           nextDueDate,
           milestonesList,
           checklistItems,
-          rawMarkdown
+          rawMarkdown,
+          phaseProgress,
+          projectsV2
         }
       };
     }
@@ -879,30 +1053,8 @@
       let latestRateLimit = null;
 
       while (hasNextPage) {
-        const response = await fetch(GITHUB_GRAPHQL_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${githubToken}`
-          },
-          body: JSON.stringify({
-            query: ROADMAP_QUERY,
-            variables: { cursor }
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP Error ${response.status}: Pastikan Personal Access Token Anda valid.`);
-        }
-
-        const result = await response.json();
-
-        if (result.errors) {
-          console.error('GitHub GraphQL Errors:', result.errors);
-          throw new Error(result.errors[0].message);
-        }
-
-        const { rateLimit, viewer } = result.data;
+        const { data } = await postGraphQLWithProjectsFallback(githubToken, cursor);
+        const { rateLimit, viewer } = data;
         latestRateLimit = rateLimit;
 
         const repoNodes = viewer.repositories.nodes || [];
@@ -968,6 +1120,13 @@
             text: `# Roadmap Pengembangan\n\n## Fase 1: Fondasi GraphQL API\n- [x] Desain query GraphQL hibrida (Milestones + Blob ROADMAP.md + Issues)\n- [x] Buat parser Regex untuk membaca task list Markdown\n- [x] Implementasi kalkulasi kesehatan proyek (On Track, Overdue, Stale)\n\n## Fase 2: Antarmuka Dashboard\n- [x] Desain kartu portofolio dark mode berbasis Slate\n- [x] Tambahkan indikator kuota Rate Limit GraphQL API\n- [x] Buat modal inspeksi detail checklist & milestone\n\n## Fase 3: Integrasi Lanjutan\n- [ ] Buat endpoint proxy PHP/Node.js untuk caching server-side\n- [ ] Dukungan notifikasi Telegram untuk milestone yang Overdue`
           },
           roadmapLower: null,
+          projectsV2: {
+            totalCount: 2,
+            nodes: [
+              { id: 'pv-1', title: 'Board Rilis v2', number: 3, url: 'https://github.com/demo-user/github-roadmap-monitor/projects/3', closed: false, status: 'In Progress', targetDate: '2026-11-30T00:00:00.000Z' },
+              { id: 'pv-2', title: 'Board Sprint QA', number: 4, url: 'https://github.com/demo-user/github-roadmap-monitor/projects/4', closed: true, status: 'Done', targetDate: '2026-09-15T00:00:00.000Z' }
+            ]
+          },
           openIssues: { totalCount: 2 },
           closedIssues: { totalCount: 6 }
         },
@@ -1283,27 +1442,7 @@
       document.getElementById('visibleCount').textContent = result.length;
       document.getElementById('totalCountText').textContent = appState.projects.length;
 
-      const emptyState = document.getElementById('emptyState');
-      const gridView = document.getElementById('projectsGridView');
-      const tableView = document.getElementById('projectsTableView');
-
-      if (result.length === 0) {
-        emptyState.classList.remove('hidden');
-        gridView.classList.add('hidden');
-        tableView.classList.add('hidden');
-        return;
-      }
-
-      emptyState.classList.add('hidden');
-      if (appState.viewMode === 'GRID') {
-        gridView.classList.remove('hidden');
-        tableView.classList.add('hidden');
-        renderGridCards(result);
-      } else {
-        gridView.classList.add('hidden');
-        tableView.classList.remove('hidden');
-        renderTableRows(result);
-      }
+      p2RenderActiveView();
     }
 
     function renderGridCards(projects) {
@@ -1338,8 +1477,9 @@
           <article class="bg-slate-900/85 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition duration-200 shadow-lg shadow-slate-950/50 group">
             <div>
               <!-- Top Badges: Source & Health -->
-              <div class="flex items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-2 mb-3 flex-wrap">
                 ${getSourceBadgeHTML(roadmap.source)}
+                ${getProjectsV2BadgeHTML(roadmap.projectsV2)}
                 ${getHealthBadgeHTML(roadmap.healthStatus)}
               </div>
 
@@ -1371,6 +1511,7 @@
                 </div>
 
                 ${targetInfo}
+                ${roadmap.source === 'ROADMAP.MD' && (roadmap.phaseProgress || []).length > 1 ? `<div class="space-y-1.5 mt-1">${phaseBarsHTML(roadmap.phaseProgress)}</div>` : ''}
               </div>
             </div>
 
@@ -1449,6 +1590,7 @@
       const { roadmap } = proj;
       document.getElementById('modalHeaderBadges').innerHTML = `
         ${getSourceBadgeHTML(roadmap.source)}
+        ${getProjectsV2BadgeHTML(roadmap.projectsV2)}
         ${getHealthBadgeHTML(roadmap.healthStatus)}
         <span class="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-slate-800 text-slate-300">${escapeHtml(proj.language)}</span>
       `;
@@ -1494,6 +1636,12 @@
               <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Hasil Parsing Checklist <code class="text-cyan-300">HEAD:ROADMAP.md</code></h3>
               <span class="text-xs font-mono text-cyan-300">${roadmap.completedTasks} selesai, ${roadmap.openTasks} tersisa</span>
             </div>
+            ${(roadmap.phaseProgress || []).length > 1 ? `<div class="space-y-1.5 p-3 rounded-xl bg-slate-950 border border-slate-800/80">${phaseBarsHTML(roadmap.phaseProgress, 10)}</div>` : ''}
+            ${(roadmap.projectsV2 || []).length > 0 ? `<div class="space-y-2">${roadmap.projectsV2.map(pv => `
+              <div class="flex items-center justify-between text-xs p-2.5 rounded-xl bg-slate-950 border border-slate-800/80">
+                <span class="text-slate-200 font-medium truncate">▦ ${escapeHtml(pv.title)}</span>
+                <span class="text-[11px] font-mono text-slate-400 shrink-0 ml-2">${escapeHtml(pv.status || '-')}${pv.targetDate ? ' • ' + formatShortDate(pv.targetDate) : ''}</span>
+              </div>`).join('')}</div>` : ''}
             <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
               ${roadmap.checklistItems.map(item => `
                 <div class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs">
@@ -1547,6 +1695,8 @@
         </div>
         ${detailSectionHTML}
       `;
+
+      if (typeof mountQuickActions === 'function') mountQuickActions(proj);
 
       const modal = document.getElementById('detailModal');
       modal.classList.remove('hidden');
@@ -1656,6 +1806,8 @@
       const gridView = document.getElementById('projectsGridView');
       skeleton.classList.remove('hidden');
       gridView.classList.add('hidden');
+      if (typeof showTimelineLoading === 'function') showTimelineLoading();
+      if (typeof showKanbanLoading === 'function') showKanbanLoading();
 
       try {
         const data = await fetchAllGitHubRoadmaps(token);
@@ -1737,18 +1889,7 @@
     }
 
     function setViewMode(mode) {
-      appState.viewMode = mode;
-      const btnGrid = document.getElementById('btnViewGrid');
-      const btnTable = document.getElementById('btnViewTable');
-
-      if (mode === 'GRID') {
-        btnGrid.className = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-indigo-600 text-white transition cursor-pointer';
-        btnTable.className = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition cursor-pointer';
-      } else {
-        btnTable.className = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-indigo-600 text-white transition cursor-pointer';
-        btnGrid.className = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition cursor-pointer';
-      }
-      applyFiltersAndRender();
+      return p2SetViewMode(mode);
     }
 
     function quickFilterHealth(status) {
@@ -1837,7 +1978,327 @@
     }
 
     // ============================================================================
-    // 10. INISIALISASI SAAT HALAMAN DIMUAT
+    // 9B. TIMELINE / GANTT + KANBAN AGGREGATOR (P2)
+var P2_SOON_DAYS = 14;
+var P2_VIEW_MODES = ['GRID', 'TABLE', 'TIMELINE', 'KANBAN'];
+var P2_KANBAN_COLS = [
+  { key: 'todo', title: 'To Do', dot: 'bg-slate-400', text: 'text-slate-300', hint: 'Belum mulai (0%)' },
+  { key: 'doing', title: 'In Progress', dot: 'bg-amber-400', text: 'text-amber-300', hint: 'Dikerjakan (1-99%)' },
+  { key: 'done', title: 'Done', dot: 'bg-emerald-400', text: 'text-emerald-300', hint: 'Selesai (100% / CLOSED)' }
+];
+
+/* ---------- helper murni (DOM-free, bisa diuji via node) ---------- */
+
+function p2Esc(s) {
+  if (typeof escapeHtml === 'function') return escapeHtml(s);
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+function p2SafeId(id) {
+  return String(id == null ? '' : id).replace(/'/g, '').replace(/\\/g, '');
+}
+
+function p2FmtDate(isoStr) {
+  if (typeof formatShortDate === 'function') return formatShortDate(isoStr);
+  if (!isoStr) return 'Tanpa tenggat';
+  return String(isoStr).slice(0, 10);
+}
+
+function p2DaysUntil(isoStr, nowMs) {
+  if (!isoStr) return null;
+  var t = new Date(isoStr).getTime();
+  if (isNaN(t)) return null;
+  var now = typeof nowMs === 'number' ? nowMs : Date.now();
+  return Math.ceil((t - now) / 86400000);
+}
+
+function p2DueFlag(dueOn, state, nowMs) {
+  if (!dueOn) return 'none';
+  var t = new Date(dueOn).getTime();
+  if (isNaN(t)) return 'none';
+  var now = typeof nowMs === 'number' ? nowMs : Date.now();
+  if (t < now && state !== 'CLOSED') return 'overdue';
+  var days = Math.ceil((t - now) / 86400000);
+  if (days >= 0 && days <= P2_SOON_DAYS) return 'soon';
+  return 'ok';
+}
+
+function p2MonthKey(isoStr) {
+  if (!isoStr) return 'NO-DATE';
+  var d = new Date(isoStr);
+  if (isNaN(d.getTime())) return 'NO-DATE';
+  var m = d.getMonth() + 1;
+  return d.getFullYear() + '-' + (m < 10 ? '0' + m : '' + m);
+}
+
+function p2MonthLabel(key) {
+  if (key === 'NO-DATE') return 'Tanpa tenggat';
+  try {
+    return new Date(key + '-01T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+  } catch (e) { return key; }
+}
+
+function p2ClassifyProgress(progress, state) {
+  if (state === 'CLOSED' || (progress || 0) >= 100) return 'done';
+  if ((progress || 0) <= 0) return 'todo';
+  return 'doing';
+}
+
+function p2CollectDueEvents(projects, nowMs) {
+  var events = [];
+  (projects || []).forEach(function (p) {
+    var rm = p.roadmap || {};
+    var list = rm.milestonesList || [];
+    var n = 0;
+    list.forEach(function (m) {
+      if (!m.dueOn) return;
+      n++;
+      events.push({ projectId: p.id, projectName: p.name, title: m.title, dueOn: m.dueOn, state: m.state, progress: m.progress, kind: 'milestone' });
+    });
+    if (rm.nextDueDate) {
+      var dup = list.some(function (m) { return m.dueOn && String(m.dueOn).slice(0, 10) === String(rm.nextDueDate).slice(0, 10); });
+      if (!dup) {
+        n++;
+        events.push({ projectId: p.id, projectName: p.name, title: rm.activeMilestoneTitle || 'Target berikutnya', dueOn: rm.nextDueDate, state: 'OPEN', progress: rm.progress, kind: 'target' });
+      }
+    }
+    if (n === 0) events.push({ projectId: p.id, projectName: p.name, title: rm.activeMilestoneTitle || p.name, dueOn: null, state: 'OPEN', progress: (rm || {}).progress || 0, kind: 'none' });
+  });
+  events.sort(function (a, b) {
+    if (!a.dueOn) return 1;
+    if (!b.dueOn) return -1;
+    return new Date(a.dueOn).getTime() - new Date(b.dueOn).getTime();
+  });
+  return events;
+}
+
+function p2GroupEventsByMonth(events) {
+  var map = {}, order = [];
+  (events || []).forEach(function (ev) {
+    var k = p2MonthKey(ev.dueOn);
+    if (!map[k]) { map[k] = []; order.push(k); }
+    map[k].push(ev);
+  });
+  order.sort(function (a, b) {
+    if (a === 'NO-DATE') return 1;
+    if (b === 'NO-DATE') return -1;
+    return a < b ? -1 : 1;
+  });
+  return order.map(function (k) { return { key: k, label: p2MonthLabel(k), items: map[k] }; });
+}
+
+function p2BuildKanbanCards(projects) {
+  var cols = { todo: [], doing: [], done: [] };
+  (projects || []).forEach(function (p) {
+    var rm = p.roadmap || {};
+    function push(card) { cols[p2ClassifyProgress(card.progress, card.state)].push(card); }
+    function base() { return { projectId: p.id, projectName: p.name, language: p.language, languageColor: p.languageColor || '#64748b' }; }
+    if (rm.source === 'MILESTONE' && (rm.milestonesList || []).length > 0) {
+      rm.milestonesList.forEach(function (m) {
+        var c = base();
+        c.kind = 'milestone'; c.title = m.title; c.state = m.state; c.progress = m.progress;
+        c.dueOn = m.dueOn; c.meta = m.closed + '/' + (m.open + m.closed) + ' issues';
+        push(c);
+      });
+    } else if (rm.source === 'ROADMAP.MD' && (rm.checklistItems || []).length > 0) {
+      rm.checklistItems.forEach(function (it) {
+        var c = base();
+        c.kind = 'checklist'; c.title = it.text; c.section = it.section;
+        c.state = it.done ? 'CLOSED' : 'OPEN'; c.progress = it.done ? 100 : 0;
+        c.dueOn = null; c.meta = it.section;
+        push(c);
+      });
+    } else {
+      var c = base();
+      c.kind = 'project'; c.title = rm.activeMilestoneTitle || p.name;
+      c.state = (rm.progress === 100 && rm.totalTasks > 0) ? 'CLOSED' : 'OPEN';
+      c.progress = rm.progress || 0; c.dueOn = rm.nextDueDate || null;
+      c.meta = rm.completedTasks + '/' + rm.totalTasks + ' task';
+      push(c);
+    }
+  });
+  return cols;
+}
+
+/* ---------- badge & kartu kecil ---------- */
+
+function p2DueBadgeHTML(ev, nowMs) {
+  var flag = p2DueFlag(ev.dueOn, ev.state, nowMs);
+  if (flag === 'overdue') return '<span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/40">Overdue</span>';
+  if (flag === 'soon') {
+    var d = p2DaysUntil(ev.dueOn, nowMs);
+    return '<span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/40">H-' + d + '</span>';
+  }
+  return '<span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">' + p2Esc(p2FmtDate(ev.dueOn)) + '</span>';
+}
+
+function p2AccentClass(ev, nowMs) {
+  var flag = p2DueFlag(ev.dueOn, ev.state, nowMs);
+  if (flag === 'overdue') return 'border-rose-500/50';
+  if (flag === 'soon') return 'border-amber-500/50';
+  return 'border-slate-800/90 hover:border-indigo-500/50';
+}
+
+function p2KindBadgeHTML(kind) {
+  if (kind === 'milestone') return '<span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">MILESTONE</span>';
+  if (kind === 'checklist') return '<span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">CHECKLIST</span>';
+  return '<span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">PROYEK</span>';
+}
+
+/* ---------- renderTimeline ---------- */
+
+function renderTimeline(projects) {
+  if (typeof document === 'undefined') return;
+  var el = document.getElementById('projectsTimelineView');
+  if (!el) return;
+  var nowMs = Date.now();
+  if (!projects || projects.length === 0) {
+    el.innerHTML = '<div class="bg-slate-900/50 border border-dashed border-slate-700 rounded-2xl p-10 text-center"><p class="text-sm font-semibold text-white">Belum ada tenggat pada timeline</p><p class="text-xs text-slate-400 mt-1">Coba ubah kata kunci pencarian atau reset filter.</p><button onclick="resetAllFilters()" class="mt-4 px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer">Reset Semua Filter</button></div>';
+    return;
+  }
+  var events = p2CollectDueEvents(projects, nowMs);
+  var groups = p2GroupEventsByMonth(events);
+  var dated = events.filter(function (e) { return e.dueOn; }).length;
+  var html = '<p class="text-xs text-slate-400 mb-3"><strong class="text-white font-mono">' + dated + '</strong> tenggat dalam <strong class="text-slate-200 font-mono">' + groups.filter(function (g) { return g.key !== 'NO-DATE'; }).length + '</strong> bulan • geser horizontal bila layar sempit</p>';
+  html += '<div class="overflow-x-auto pb-2"><div class="flex gap-4 min-w-max items-stretch pb-1">';
+  html += groups.map(function (g) {
+    var cards = g.items.map(function (ev) {
+      var sub = ev.kind === 'milestone'
+        ? '<span class="text-slate-400">' + ev.progress + '% • ' + ev.state + '</span>'
+        : '<span class="text-slate-400">' + p2Esc(p2FmtDate(ev.dueOn)) + '</span>';
+      return '<button onclick="openDetailModal(\'' + p2SafeId(ev.projectId) + '\')" class="w-full text-left p-3 rounded-xl bg-slate-950 border border-l-4 ' + p2AccentClass(ev, nowMs) + ' transition cursor-pointer">'
+        + '<div class="flex items-center justify-between gap-2"><span class="text-[11px] font-mono text-slate-400 truncate">' + p2Esc(ev.projectName) + '</span>' + p2DueBadgeHTML(ev, nowMs) + '</div>'
+        + '<p class="text-xs font-semibold text-white mt-1 line-clamp-2">' + p2Esc(ev.title) + '</p>'
+        + '<div class="flex items-center justify-between mt-1.5 text-[11px] font-mono">' + sub + '</div></button>';
+    }).join('');
+    return '<div class="w-[260px] shrink-0 bg-slate-900/80 border border-slate-800/90 rounded-2xl overflow-hidden flex flex-col">'
+      + '<div class="px-4 py-3 bg-slate-950/60 border-b border-slate-800 flex items-center gap-2"><span class="w-2 h-2 rounded-full ' + (g.key === 'NO-DATE' ? 'bg-slate-500' : 'bg-indigo-400') + ' shrink-0"></span>'
+      + '<span class="text-xs font-bold text-white font-mono">' + p2Esc(g.label) + '</span>'
+      + '<span class="ml-auto text-[11px] font-mono text-slate-400">' + g.items.length + ' item</span></div>'
+      + '<div class="p-3 space-y-2.5">' + cards + '</div></div>';
+  }).join('');
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+function showTimelineLoading() {
+  if (typeof document === 'undefined') return;
+  var el = document.getElementById('projectsTimelineView');
+  if (!el) return;
+  el.innerHTML = '<div class="overflow-x-auto pb-2"><div class="flex gap-4 min-w-max">'
+    + [1, 2, 3].map(function () { return '<div class="w-[260px] shrink-0 bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-3 animate-pulse"><div class="h-4 bg-slate-800 rounded w-1/2"></div><div class="h-16 bg-slate-800 rounded-xl"></div><div class="h-16 bg-slate-800 rounded-xl"></div></div>'; }).join('')
+    + '</div></div>';
+}
+
+function renderTimelineError(msg) {
+  if (typeof document === 'undefined') return;
+  var el = document.getElementById('projectsTimelineView');
+  if (!el) return;
+  el.innerHTML = '<div class="rounded-2xl bg-rose-950/60 border border-rose-500/40 p-4 text-xs text-rose-200">Gagal memuat timeline: ' + p2Esc(msg || 'kesalahan tak dikenal') + '<button onclick="applyFiltersAndRender()" class="ml-3 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium cursor-pointer">Coba lagi</button></div>';
+}
+
+/* ---------- renderKanban ---------- */
+
+function renderKanban(projects) {
+  if (typeof document === 'undefined') return;
+  var el = document.getElementById('projectsKanbanView');
+  if (!el) return;
+  if (!projects || projects.length === 0) {
+    el.innerHTML = '<div class="bg-slate-900/50 border border-dashed border-slate-700 rounded-2xl p-10 text-center"><p class="text-sm font-semibold text-white">Belum ada kartu pada kanban</p><p class="text-xs text-slate-400 mt-1">Coba ubah kata kunci pencarian atau reset filter.</p><button onclick="resetAllFilters()" class="mt-4 px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer">Reset Semua Filter</button></div>';
+    return;
+  }
+  var cols = p2BuildKanbanCards(projects);
+  el.innerHTML = '<div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">'
+    + P2_KANBAN_COLS.map(function (col) {
+      var cards = cols[col.key].map(function (c) {
+        var due = c.dueOn ? '<span class="text-slate-400">' + p2Esc(p2FmtDate(c.dueOn)) + '</span>' : '<span class="text-slate-600">-</span>';
+        return '<button onclick="openDetailModal(\'' + p2SafeId(c.projectId) + '\')" class="w-full text-left p-3 rounded-xl bg-slate-950 border border-slate-800/90 hover:border-indigo-500/50 transition cursor-pointer">'
+          + '<div class="flex items-center justify-between gap-2">' + p2KindBadgeHTML(c.kind)
+          + '<span class="text-[11px] font-mono font-semibold ' + (c.progress === 100 ? 'text-emerald-300' : c.progress === 0 ? 'text-slate-400' : 'text-amber-300') + '">' + c.progress + '%</span></div>'
+          + '<p class="text-xs font-semibold text-white mt-1.5 line-clamp-2">' + p2Esc(c.title) + '</p>'
+          + '<div class="flex items-center justify-between mt-2 text-[11px] font-mono text-slate-400"><span class="inline-flex items-center gap-1.5 truncate"><span class="w-2 h-2 rounded-full shrink-0" style="background-color: ' + p2Esc(c.languageColor) + '"></span><span class="truncate">' + p2Esc(c.projectName) + '</span></span>' + due + '</div>'
+          + '<p class="text-[10px] font-mono text-slate-500 mt-1 truncate">' + p2Esc(c.meta || '') + '</p></button>';
+      }).join('');
+      if (!cards) cards = '<div class="p-4 rounded-xl border border-dashed border-slate-700 text-center text-[11px] text-slate-500">Tidak ada kartu</div>';
+      return '<div class="bg-slate-900/80 border border-slate-800/90 rounded-2xl overflow-hidden">'
+        + '<div class="px-4 py-3 bg-slate-950/60 border-b border-slate-800"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ' + col.dot + '"></span>'
+        + '<span class="text-xs font-bold text-white">' + col.title + '</span>'
+        + '<span class="ml-auto text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800 ' + col.text + '">' + cols[col.key].length + '</span></div>'
+        + '<p class="text-[10px] text-slate-500 mt-0.5">' + col.hint + '</p></div>'
+        + '<div class="p-3 space-y-2.5">' + cards + '</div></div>';
+    }).join('') + '</div>';
+}
+
+function showKanbanLoading() {
+  if (typeof document === 'undefined') return;
+  var el = document.getElementById('projectsKanbanView');
+  if (!el) return;
+  el.innerHTML = '<div class="grid grid-cols-1 md:grid-cols-3 gap-4">'
+    + [1, 2, 3].map(function () { return '<div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-3 animate-pulse"><div class="h-4 bg-slate-800 rounded w-1/3"></div><div class="h-20 bg-slate-800 rounded-xl"></div><div class="h-20 bg-slate-800 rounded-xl"></div></div>'; }).join('')
+    + '</div>';
+}
+
+function renderKanbanError(msg) {
+  if (typeof document === 'undefined') return;
+  var el = document.getElementById('projectsKanbanView');
+  if (!el) return;
+  el.innerHTML = '<div class="rounded-2xl bg-rose-950/60 border border-rose-500/40 p-4 text-xs text-rose-200">Gagal memuat kanban: ' + p2Esc(msg || 'kesalahan tak dikenal') + '<button onclick="applyFiltersAndRender()" class="ml-3 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium cursor-pointer">Coba lagi</button></div>';
+}
+
+/* ---------- router 4-mode + assert mobile ---------- */
+
+function p2SetViewMode(mode) {
+  if (P2_VIEW_MODES.indexOf(mode) < 0) mode = 'GRID';
+  if (typeof appState !== 'undefined') appState.viewMode = mode;
+  if (typeof document === 'undefined') return mode;
+  var ids = { GRID: 'btnViewGrid', TABLE: 'btnViewTable', TIMELINE: 'btnViewTimeline', KANBAN: 'btnViewKanban' };
+  var active = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-indigo-600 text-white transition cursor-pointer';
+  var idle = 'px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition cursor-pointer';
+  Object.keys(ids).forEach(function (k) {
+    var b = document.getElementById(ids[k]);
+    if (b) b.className = (k === mode) ? active : idle;
+  });
+  p2RenderActiveView();
+  return mode;
+}
+
+function p2RenderActiveView() {
+  if (typeof document === 'undefined') return;
+  var data = (typeof appState !== 'undefined' && appState.filteredProjects) ? appState.filteredProjects : [];
+  var views = { GRID: 'projectsGridView', TABLE: 'projectsTableView', TIMELINE: 'projectsTimelineView', KANBAN: 'projectsKanbanView' };
+  var mode = (typeof appState !== 'undefined' && appState.viewMode) || 'GRID';
+  Object.keys(views).forEach(function (k) {
+    var s = document.getElementById(views[k]);
+    if (s) s.classList.add('hidden');
+  });
+  var emptyState = document.getElementById('emptyState');
+  if (!data || data.length === 0) {
+    if (emptyState) emptyState.classList.remove('hidden');
+    return;
+  }
+  if (emptyState) emptyState.classList.add('hidden');
+  var target = document.getElementById(views[mode] || views.GRID);
+  if (target) target.classList.remove('hidden');
+  try {
+    if (mode === 'TIMELINE') renderTimeline(data);
+    else if (mode === 'KANBAN') renderKanban(data);
+    else if (mode === 'TABLE' && typeof renderTableRows === 'function') renderTableRows(data);
+    else if (typeof renderGridCards === 'function') renderGridCards(data);
+  } catch (e) {
+    if (mode === 'TIMELINE') renderTimelineError(e.message);
+    else if (mode === 'KANBAN') renderKanbanError(e.message);
+    else throw e;
+  }
+}
+
+function p2AssertNoPageOverflow() {
+  if (typeof document === 'undefined') return { ok: true, skipped: true };
+  var de = document.documentElement;
+  return { ok: de.scrollWidth <= de.clientWidth + 1, scrollWidth: de.scrollWidth, clientWidth: de.clientWidth };
+}
+
+        // 10. INISIALISASI SAAT HALAMAN DIMUAT
     // ============================================================================
     window.addEventListener('DOMContentLoaded', async () => {
       // Tutup modal saat klik area luar (backdrop)
@@ -1882,6 +2343,112 @@
       // Default: jalankan Mode Demo Simulasi agar langsung interaktif
       loadDemoData(false);
     });
+    // 9C. QUICK ACTIONS FRONTEND (P4: POST /api/actions, tanpa token browser)
+// P4 frontend — Quick Actions di modal detail. Same-origin POST /api/actions,
+// tanpa token dari browser. Pakai showToast bawaan bila ada. Refresh ?force=1
+// via tryProxyFirst bila ada, else fetch PROXY_ENDPOINT langsung.
+// Cara pasang: tempel <script src> atau isi file ini sebelum </body>,
+// lalu panggil mountQuickActions(proj) di akhir openDetailModal (lihat p4_insert_guide.md).
+
+const ACTIONS_ENDPOINT = '/api/actions';
+
+function qaToast(msg, type) {
+  if (typeof showToast === 'function') return showToast(msg, type);
+  if (type === 'error') console.error(msg); else console.log(msg);
+}
+
+// Dialog konfirmasi dua langkah: panggil, user klik "Ya, jalankan" baru POST.
+function confirmTwoStep({ title, detail, confirmLabel, onConfirm }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm';
+  wrap.innerHTML =
+    '<div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-5 space-y-3 shadow-2xl">' +
+    '<h3 class="text-sm font-bold text-white">' + escapeHtml(title) + '</h3>' +
+    '<p class="text-xs text-slate-400">' + escapeHtml(detail) + '</p>' +
+    '<div class="flex items-center justify-end gap-2 pt-1">' +
+    '<button data-qa="cancel" class="px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Batal</button>' +
+    '<button data-qa="ok" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white transition">' + escapeHtml(confirmLabel || 'Ya, jalankan') + '</button>' +
+    '</div></div>';
+  const close = () => wrap.remove();
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+  wrap.querySelector('[data-qa="cancel"]').onclick = close;
+  wrap.querySelector('[data-qa="ok"]').onclick = async (ev) => {
+    ev.target.disabled = true;
+    ev.target.textContent = 'Menjalankan…';
+    try { await onConfirm(); } finally { close(); }
+  };
+  document.body.appendChild(wrap);
+}
+
+async function runQuickAction(action, payload) {
+  const res = await fetch(ACTIONS_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(Object.assign({ action }, payload)),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error((data && data.message) || ('HTTP ' + res.status));
+  return data;
+}
+
+async function refreshAfterAction() {
+  try {
+    if (typeof tryProxyFirst === 'function') { await tryProxyFirst(true, true); return; }
+    const r = await fetch((typeof PROXY_ENDPOINT === 'string' ? PROXY_ENDPOINT : '/api/roadmaps') + '?force=1');
+    const d = await r.json();
+    if (typeof applyProxyData === 'function' && d && d.ok) applyProxyData(d);
+  } catch (e) { console.warn('Refresh gagal:', e.message); }
+}
+
+function askAndRun(action, buildPayload, confirmText) {
+  const payload = buildPayload();
+  if (!payload) return; // buildPayload sudah toast alasan batal
+  confirmTwoStep({
+    title: action === 'closeIssue' ? 'Tutup issue ini?' : 'Ubah nilai item proyek?',
+    detail: confirmText,
+    confirmLabel: 'Ya, jalankan',
+    onConfirm: async () => {
+      try {
+        await runQuickAction(action, payload);
+        qaToast('Aksi berhasil. Menyegarkan data…', 'success');
+        await refreshAfterAction();
+      } catch (e) {
+        qaToast('Aksi gagal: ' + e.message, 'error');
+      }
+    },
+  });
+}
+
+// Section tombol di bawah isi modal detail. ID node dibaca dari data-attr
+// (diisi P3/projectsV2); bila kosong, tombol nonaktif + alasan jujur.
+function mountQuickActions(proj) {
+  const host = document.getElementById('modalBodyContent');
+  if (!host || !proj || host.querySelector('[data-qa-section]')) return;
+  const box = document.createElement('div');
+  box.setAttribute('data-qa-section', '1');
+  box.className = 'p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3';
+  const issueId = (proj.roadmap && proj.roadmap.sampleIssueId) || '';
+  const pvList = (proj.roadmap && proj.roadmap.projectsV2) || [];
+  const pv = proj.projectV2 || pvList[0] || {};
+  const readyIssue = !!issueId;
+  const readyItem = !!(pv.projectId && pv.itemId && pv.fieldId);
+  box.innerHTML =
+    '<h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Quick Actions</h3>' +
+    '<div class="flex flex-wrap gap-2">' +
+    '<button data-qa-btn="close" ' + (readyIssue ? '' : 'disabled') + ' class="px-3.5 py-2 rounded-xl text-xs font-semibold transition ' + (readyIssue ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed') + '">Tutup issue contoh</button>' +
+    '<button data-qa-btn="item" ' + (readyItem ? '' : 'disabled') + ' class="px-3.5 py-2 rounded-xl text-xs font-semibold transition ' + (readyItem ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed') + '">Set status item → Done</button>' +
+    '</div>' +
+    '<p class="text-[11px] text-slate-500">Tanpa token di browser — otorisasi via server. ' +
+    ((!readyIssue || !readyItem) ? 'ID node GitHub belum tersedia di data ini (butuh perluasan query projectsV2/issue — lihat P3).' : 'Dua langkah: klik → konfirmasi → jalankan.') + '</p>';
+  host.appendChild(box);
+  if (readyIssue) box.querySelector('[data-qa-btn="close"]').onclick = () =>
+    askAndRun('closeIssue', () => ({ issueId }), 'Issue ' + issueId + ' akan ditutup. Lanjut?');
+  if (readyItem) box.querySelector('[data-qa-btn="item"]').onclick = () =>
+    askAndRun('updateProjectV2Item', () => ({
+      projectId: pv.projectId, itemId: pv.itemId, fieldId: pv.fieldId,
+      value: { singleSelectOptionId: pv.doneOptionId || '' },
+    }), 'Item proyek akan diset Done. Lanjut?');
+}
   </script>
 </body>
 </html>

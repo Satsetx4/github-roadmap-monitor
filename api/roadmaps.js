@@ -7,7 +7,52 @@ const GITHUB_GRAPHQL_ENDPOINT = 'https://api.github.com/graphql';
 const CACHE_TTL_MS = (parseInt(process.env.CACHE_TTL_SECONDS || '720', 10) || 720) * 1000;
 
 // Query sama persis dengan ROADMAP_QUERY di index.html (1 HTTP call per 50 repo).
-const ROADMAP_QUERY = `query GetAllProjectRoadmaps($cursor: String) {
+// Builder + fallback: token lama tanpa scope Projects bisa tolak blok projectsV2.
+const ROADMAP_QUERY_NODES_TAIL = `
+        openIssues: issues(states: OPEN) { totalCount }
+        closedIssues: issues(states: CLOSED) { totalCount }
+        projectsV2(first: 10) {
+          totalCount
+          nodes {
+            id
+            title
+            number
+            url
+            closed
+            fieldValues(first: 20) {
+              nodes {
+                __typename
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                  field { ... on ProjectV2SingleSelectField { name } }
+                }
+                ... on ProjectV2ItemFieldDateValue {
+                  date
+                  field { ... on ProjectV2Field { name } }
+                }
+                ... on ProjectV2ItemFieldTextValue {
+                  text
+                  field { ... on ProjectV2Field { name } }
+                }
+              }
+            }
+            fields(first: 20) {
+              nodes {
+                __typename
+                ... on ProjectV2SingleSelectField { name }
+                ... on ProjectV2Field { name }
+              }
+            }
+          }
+        }`;
+
+function buildRoadmapQuery(withProjectsV2) {
+  const tail = withProjectsV2
+    ? ROADMAP_QUERY_NODES_TAIL
+    : `
+        openIssues: issues(states: OPEN) { totalCount }
+        closedIssues: issues(states: CLOSED) { totalCount }`;
+  return `query GetAllProjectRoadmaps($cursor: String) {
   rateLimit {
     limit
     cost
@@ -57,12 +102,37 @@ const ROADMAP_QUERY = `query GetAllProjectRoadmaps($cursor: String) {
         roadmapLower: object(expression: "HEAD:roadmap.md") {
           ... on Blob { text }
         }
-        openIssues: issues(states: OPEN) { totalCount }
-        closedIssues: issues(states: CLOSED) { totalCount }
+${tail}
       }
     }
   }
 }`;
+}
+
+const ROADMAP_QUERY = buildRoadmapQuery(true);
+const ROADMAP_QUERY_BASE = buildRoadmapQuery(false);
+
+async function postGraphQLPage(pat, query, cursor) {
+  const response = await fetch(GITHUB_GRAPHQL_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${pat}`,
+    },
+    body: JSON.stringify({ query, variables: { cursor } }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub HTTP ${response.status}: token tidak valid / akses ditolak.`);
+  }
+
+  const result = await response.json();
+  if (result.errors && result.errors.length > 0) {
+    throw new Error(result.errors[0].message);
+  }
+
+  return result.data;
+}
 
 let cache = { at: 0, payload: null };
 
@@ -73,26 +143,17 @@ async function githubPagedFetch(pat) {
   let latestRateLimit = null;
 
   while (hasNextPage) {
-    const response = await fetch(GITHUB_GRAPHQL_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${pat}`,
-      },
-      body: JSON.stringify({ query: ROADMAP_QUERY, variables: { cursor } }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`GitHub HTTP ${response.status}: token tidak valid / akses ditolak.`);
+    let data;
+    try {
+      data = await postGraphQLPage(pat, ROADMAP_QUERY, cursor);
+    } catch (e) {
+      // Fallback v1.0 bila API tolak blok projectsV2 (token lama / tanpa scope Projects).
+      if (!/projectsV2/i.test(String((e && e.message) || e))) throw e;
+      data = await postGraphQLPage(pat, ROADMAP_QUERY_BASE, cursor);
     }
 
-    const result = await response.json();
-    if (result.errors && result.errors.length > 0) {
-      throw new Error(result.errors[0].message);
-    }
-
-    latestRateLimit = result.data.rateLimit;
-    const page = result.data.viewer.repositories;
+    latestRateLimit = data.rateLimit;
+    const page = data.viewer.repositories;
     repos = repos.concat(page.nodes || []);
     hasNextPage = page.pageInfo.hasNextPage;
     cursor = page.pageInfo.endCursor;
@@ -141,6 +202,6 @@ async function handler(req, res) {
   }
 }
 
-handler._test = { ROADMAP_QUERY, githubPagedFetch };
+handler._test = { ROADMAP_QUERY, ROADMAP_QUERY_BASE, buildRoadmapQuery, githubPagedFetch };
 
 module.exports = handler;
